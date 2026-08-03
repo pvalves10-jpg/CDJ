@@ -93,6 +93,8 @@ function tratar_(e) {
         return json_({ ok: true, arquivo: upload_(req) });
       case 'imagem':
         return json_(imagem_(req));
+      case 'thumb':
+        return json_(thumb_(req));
       case 'excluir':
         excluir_(req.id);
         return json_({ ok: true });
@@ -211,6 +213,45 @@ function imagem_(req) {
   };
 }
 
+/**
+ * Miniatura leve: usa o thumbnail nativo do Drive (muito menor que a foto
+ * inteira). Se falhar por qualquer motivo, cai para a imagem inteira — a
+ * galeria nunca quebra.
+ */
+function thumb_(req) {
+  var id = req.id;
+  if (!id) throw new Error('id ausente');
+  var size = parseInt(req.tamanho, 10) || 400;
+  if (size < 64) size = 64;
+  if (size > 1600) size = 1600;
+  try {
+    var url =
+      'https://drive.google.com/thumbnail?id=' +
+      encodeURIComponent(id) +
+      '&sz=w' +
+      size;
+    var resp = UrlFetchApp.fetch(url, {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    if (resp.getResponseCode() === 200) {
+      var blob = resp.getBlob();
+      var ct = blob.getContentType() || '';
+      if (ct.indexOf('image/') === 0) {
+        return {
+          ok: true,
+          base64: Utilities.base64Encode(blob.getBytes()),
+          mimeType: ct,
+        };
+      }
+    }
+  } catch (e) {
+    /* cai no fallback abaixo */
+  }
+  return imagem_(req);
+}
+
 function excluir_(id) {
   if (id) DriveApp.getFileById(id).setTrashed(true);
 }
@@ -283,7 +324,12 @@ var PERSONA_CHAT =
   'eventos, disponibilidade, clima), PESQUISE na web com a ferramenta de busca ' +
   'e cite o que encontrou. Se receber uma FOTO, analise-a (ex.: identificar um ' +
   'lugar, ler um cardápio ou uma placa). Se receber um ÁUDIO, entenda o que foi ' +
-  'dito e responda normalmente.';
+  'dito e responda normalmente. FORMATAÇÃO: escreva bem organizado em MARKDOWN — ' +
+  'use **negrito** para títulos e nomes de lugares, listas com "- " quando fizer ' +
+  'sentido e parágrafos curtos separados por uma linha em branco. Use emojis com ' +
+  'bom gosto (1 a 3 por bloco, ex.: 🏔️ 🍽️ ☕ 🌧️ 💡 📍 💰) para deixar leve e ' +
+  'visual, sem exagerar. Comece com uma frase calorosa e termine com uma dica ou ' +
+  'uma pergunta. Tom profissional, mas acolhedor.';
 
 // Modelos que suportam busca na web (google_search) e entrada de foto/áudio.
 var MODELOS_CHAT = ['gemini-2.5-flash', 'gemini-2.0-flash'];

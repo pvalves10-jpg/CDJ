@@ -1,20 +1,9 @@
 import { useEffect, useState } from 'react'
-import { baixarComoObjectURL } from '../../services/drive'
-
-/** thumbnailLink termina em "=s220"; troca pelo tamanho que a gente quer. */
-function comTamanho(link, tamanho) {
-  return link.replace(/=s\d+(-c)?$/, '') + `=s${tamanho}`
-}
+import { baixarImagem } from '../../services/drive'
 
 /**
- * Imagem do Drive com duas estratégias.
- *
- * 1. `thumbnailLink` (googleusercontent) — leve e rápido, mas depende da sessão
- *    do Google no navegador; sem ela devolve 403.
- * 2. Download autenticado com o access token, virando object URL — sempre
- *    funciona, mas baixa o arquivo inteiro.
- *
- * Começa pela 1 e cai para a 2 no primeiro erro. Em tela cheia já usa a 2.
+ * Imagem do Drive via Apps Script, com cache em IndexedDB.
+ * Na grade usa a miniatura leve (`tamanho`); em tela cheia (`alta`), a inteira.
  */
 export default function ImagemDrive({
   foto,
@@ -23,23 +12,17 @@ export default function ImagemDrive({
   alt,
   className = '',
 }) {
-  const [autenticado, setAutenticado] = useState(alta || !foto.thumbnailLink)
   const [src, setSrc] = useState(null)
   const [falhou, setFalhou] = useState(false)
 
   useEffect(() => {
     setFalhou(false)
-
-    if (!autenticado) {
-      setSrc(comTamanho(foto.thumbnailLink, tamanho))
-      return
-    }
+    setSrc(null)
 
     let cancelado = false
     let url = null
-    setSrc(null)
 
-    baixarComoObjectURL(foto.id)
+    baixarImagem(foto.id, alta ? {} : { tamanho })
       .then((u) => {
         if (cancelado) {
           URL.revokeObjectURL(u)
@@ -56,7 +39,7 @@ export default function ImagemDrive({
       cancelado = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [foto.id, foto.thumbnailLink, tamanho, autenticado])
+  }, [foto.id, tamanho, alta])
 
   if (falhou) {
     return (
@@ -87,12 +70,7 @@ export default function ImagemDrive({
       alt={alt}
       loading="lazy"
       decoding="async"
-      referrerPolicy="no-referrer"
-      onError={() => {
-        // 403 no thumbnail: tenta de novo pelo caminho autenticado.
-        if (!autenticado) setAutenticado(true)
-        else setFalhou(true)
-      }}
+      onError={() => setFalhou(true)}
       className={className}
     />
   )

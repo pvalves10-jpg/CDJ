@@ -1,5 +1,6 @@
 import { chamar, enviarArquivo } from './api'
 import { reduzirImagem } from '../utils/imagem'
+import { getImagem, putImagem } from '../utils/cacheImagens'
 
 /**
  * Camada de Drive — agora sobre o backend em Apps Script.
@@ -186,21 +187,51 @@ export async function listarFotos() {
   return Array.isArray(fotos) ? fotos : []
 }
 
-function base64ParaBlob(base64, mime) {
-  const binario = atob(base64)
-  const bytes = new Uint8Array(binario.length)
-  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i)
-  return new Blob([bytes], { type: mime || 'application/octet-stream' })
+async function base64ParaBlob(base64, mime) {
+  // Decode nativo via data URL — sem loop atob travando a main thread.
+  const resposta = await fetch(
+    `data:${mime || 'application/octet-stream'};base64,${base64}`,
+  )
+  return resposta.blob()
 }
 
 /**
- * Baixa o conteúdo de um arquivo (via Apps Script) e devolve um object URL.
- * Quem chama é responsável por dar `URL.revokeObjectURL`.
+ * Blob da imagem do Drive, com cache em IndexedDB (imagens são imutáveis por id).
+ * `tamanho` (número) pede a miniatura leve do Drive; sem ele, a imagem inteira.
  */
-export async function baixarComoObjectURL(fileId) {
-  const { base64, mimeType } = await chamar('imagem', { id: fileId })
-  return URL.createObjectURL(base64ParaBlob(base64, mimeType))
+async function garantirBlob(fileId, { tamanho } = {}) {
+  const chave = `${fileId}:${tamanho || 'full'}`
+  const emCache = await getImagem(chave)
+  if (emCache) return emCache
+
+  const { base64, mimeType } = await chamar(tamanho ? 'thumb' : 'imagem', {
+    id: fileId,
+    tamanho,
+  })
+  const blob = await base64ParaBlob(base64, mimeType)
+  putImagem(chave, blob) // não bloqueia
+  return blob
 }
+
+/**
+ * Object URL de uma imagem do Drive. Quem chama é responsável por dar
+ * `URL.revokeObjectURL`. Passe `{ tamanho }` para a miniatura leve.
+ */
+export async function baixarImagem(fileId, opcoes) {
+  return URL.createObjectURL(await garantirBlob(fileId, opcoes))
+}
+
+/** Aquece o cache sem criar object URL (prefetch das fotos vizinhas). */
+export async function prefetchImagem(fileId, opcoes) {
+  try {
+    await garantirBlob(fileId, opcoes)
+  } catch {
+    /* prefetch é best-effort */
+  }
+}
+
+/** Compat: nome antigo (imagem inteira). */
+export const baixarComoObjectURL = (fileId) => baixarImagem(fileId)
 
 export async function excluirArquivo(fileId) {
   if (!fileId) return

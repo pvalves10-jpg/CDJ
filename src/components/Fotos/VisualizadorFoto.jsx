@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import ImagemDrive from './ImagemDrive'
+import { prefetchImagem } from '../../services/drive'
 
 export default function VisualizadorFoto({ fotos, indice, aoFechar, aoNavegar }) {
   const foto = fotos[indice]
@@ -21,6 +22,13 @@ export default function VisualizadorFoto({ fotos, indice, aoFechar, aoNavegar })
       document.removeEventListener('keydown', aoTeclar)
     }
   }, [aoFechar, aoNavegar])
+
+  // Adianta as vizinhas para o swipe ficar instantâneo (cai no cache).
+  useEffect(() => {
+    ;[fotos[indice - 1], fotos[indice + 1]].forEach(
+      (f) => f && prefetchImagem(f.id),
+    )
+  }, [indice, fotos])
 
   if (!foto) return null
 
