@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { assinarAuth, estaAutenticado, login, logout } from '../services/auth'
 import { limparCachePastas } from '../services/drive'
+import { toast } from '../services/toast'
 
 /** Estado de conexão com o Google, compartilhado por todas as telas. */
 export function useDrive() {
@@ -17,9 +18,12 @@ export function useDrive() {
     try {
       await login()
       limparCachePastas()
+      toast.ok('Conectado ao Google Drive.')
       return true
     } catch (e) {
       setErro(e.message)
+      // CANCELADO é o usuário fechando o pop-up de propósito — não é erro.
+      if (e.codigo !== 'CANCELADO') toast.erro(e.message)
       return false
     } finally {
       setConectando(false)
@@ -30,6 +34,7 @@ export function useDrive() {
     logout()
     limparCachePastas()
     setErro(null)
+    toast.ok('Conta Google desconectada.')
   }, [])
 
   return { autenticado, conectando, erro, conectar, desconectar, setErro }

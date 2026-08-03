@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import ResumoSaldo from './ResumoSaldo'
 import Cartao from '../ui/Cartao'
 import Botao from '../ui/Botao'
 import Modal from '../ui/Modal'
 import { useDespesas } from '../../hooks/useDespesas'
+import { toast } from '../../services/toast'
 import { formatarMoeda, formatarData } from '../../utils/formatters'
 import { nomeUsuario, USUARIOS } from '../../utils/constantes'
 import { textoDoSaldo } from '../../utils/saldo'
@@ -18,14 +19,7 @@ export default function Saldo() {
     removerAcerto,
   } = useDespesas()
 
-  const [feedback, setFeedback] = useState(null)
   const [confirmarPix, setConfirmarPix] = useState(false)
-
-  useEffect(() => {
-    if (!feedback) return
-    const id = setTimeout(() => setFeedback(null), 2600)
-    return () => clearTimeout(id)
-  }, [feedback])
 
   async function compartilhar() {
     const texto = textoDoSaldo(saldo, formatarMoeda, nomeUsuario)
@@ -43,12 +37,9 @@ export default function Saldo() {
 
     try {
       await navigator.clipboard.writeText(texto)
-      setFeedback({ tipo: 'ok', texto: 'Texto copiado!' })
+      toast.ok('Resumo copiado — é só colar no WhatsApp.')
     } catch {
-      setFeedback({
-        tipo: 'erro',
-        texto: 'Não consegui copiar. Selecione o texto do resumo à mão.',
-      })
+      toast.erro('Não consegui copiar para a área de transferência.')
     }
   }
 
@@ -59,9 +50,9 @@ export default function Saldo() {
         para: saldo.credor,
         valor: saldo.valor,
       })
-      setFeedback({ tipo: 'ok', texto: 'Pix registrado — contas zeradas.' })
+      toast.ok('Pix registrado — contas zeradas.')
     } catch {
-      /* erro exibido na tela de despesas */
+      /* o hook já avisou por toast */
     } finally {
       setConfirmarPix(false)
     }
@@ -131,20 +122,6 @@ export default function Saldo() {
           </Botao>
         )}
       </div>
-
-      {feedback && (
-        <p
-          role="status"
-          className={[
-            'anim-fade-up rounded-card px-3.5 py-2.5 text-center text-sm',
-            feedback.tipo === 'ok'
-              ? 'bg-pinheiro-100 text-pinheiro-800'
-              : 'bg-red-50 text-red-700',
-          ].join(' ')}
-        >
-          {feedback.texto}
-        </p>
-      )}
 
       {acertos.length > 0 && (
         <Cartao

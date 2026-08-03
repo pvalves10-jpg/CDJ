@@ -14,6 +14,7 @@ import {
   salvarDespesas,
 } from '../services/drive'
 import { estaAutenticado, assinarAuth } from '../services/auth'
+import { toast } from '../services/toast'
 import { CATEGORIAS_PADRAO } from '../utils/constantes'
 import { calcularSaldo } from '../utils/saldo'
 
@@ -51,7 +52,6 @@ export function DespesasProvider({ children }) {
   const [envelope, setEnvelope] = useState(() => lerCache() ?? envelopeVazio())
   const [carregando, setCarregando] = useState(false)
   const [salvando, setSalvando] = useState(false)
-  const [erro, setErro] = useState(null)
   /** false enquanto os dados vierem só do cache local. */
   const [sincronizado, setSincronizado] = useState(false)
 
@@ -65,7 +65,6 @@ export function DespesasProvider({ children }) {
       return null
     }
     if (!silencioso) setCarregando(true)
-    setErro(null)
     try {
       const remoto = await lerDespesas()
       setEnvelope(remoto)
@@ -73,7 +72,7 @@ export function DespesasProvider({ children }) {
       setSincronizado(true)
       return remoto
     } catch (e) {
-      setErro(e.message)
+      toast.erro(`Não consegui carregar as despesas: ${e.message}`)
       setSincronizado(false)
       return null
     } finally {
@@ -98,14 +97,13 @@ export function DespesasProvider({ children }) {
     setEnvelope(proximo)
     gravarCache(proximo)
     setSalvando(true)
-    setErro(null)
     try {
       await salvarDespesas(proximo)
       setSincronizado(true)
     } catch (e) {
       setEnvelope(anterior)
       gravarCache(anterior)
-      setErro(e.message)
+      toast.erro(`Não salvou no Drive: ${e.message}`)
       throw e
     } finally {
       setSalvando(false)
@@ -226,9 +224,7 @@ export function DespesasProvider({ children }) {
       saldo: calcularSaldo(despesas, envelope.acertos),
       carregando,
       salvando,
-      erro,
       sincronizado,
-      setErro,
       recarregar,
       adicionar,
       atualizar,
@@ -241,7 +237,6 @@ export function DespesasProvider({ children }) {
     envelope,
     carregando,
     salvando,
-    erro,
     sincronizado,
     recarregar,
     adicionar,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { listarFotos, uploadFoto } from '../services/drive'
 import { assinarAuth, estaAutenticado } from '../services/auth'
+import { toast } from '../services/toast'
 
 /** Sobe algumas fotos ao mesmo tempo: sequencial é lento, tudo junto sufoca a rede. */
 const SIMULTANEOS = 3
@@ -8,18 +9,16 @@ const SIMULTANEOS = 3
 export function useFotos() {
   const [fotos, setFotos] = useState([])
   const [carregando, setCarregando] = useState(false)
-  const [erro, setErro] = useState(null)
   /** Uma entrada por arquivo em voo: { nome, progresso, erro }. */
   const [envios, setEnvios] = useState([])
 
   const recarregar = useCallback(async () => {
     if (!estaAutenticado()) return
     setCarregando(true)
-    setErro(null)
     try {
       setFotos(await listarFotos())
     } catch (e) {
-      setErro(e.message)
+      toast.erro(`Não consegui listar as fotos: ${e.message}`)
     } finally {
       setCarregando(false)
     }
@@ -35,9 +34,11 @@ export function useFotos() {
   const enviar = useCallback(
     async (arquivos) => {
       const lista = [...arquivos].filter((f) => f.type.startsWith('image/'))
-      if (!lista.length) return
+      if (!lista.length) {
+        toast.aviso('Nenhum dos arquivos selecionados é uma imagem.')
+        return
+      }
 
-      setErro(null)
       setEnvios(lista.map((f) => ({ nome: f.name, progresso: 0, erro: null })))
 
       const atualizar = (indice, campos) =>
@@ -69,8 +70,15 @@ export function useFotos() {
 
       const falhas = lista.length - enviados.length
       if (falhas > 0) {
-        setErro(
+        toast.erro(
           `${falhas} de ${lista.length} ${falhas === 1 ? 'foto não subiu' : 'fotos não subiram'}.`,
+        )
+      }
+      if (enviados.length) {
+        toast.ok(
+          enviados.length === 1
+            ? 'Foto enviada!'
+            : `${enviados.length} fotos enviadas!`,
         )
       }
 
@@ -87,5 +95,5 @@ export function useFotos() {
     [recarregar],
   )
 
-  return { fotos, carregando, erro, setErro, envios, recarregar, enviar }
+  return { fotos, carregando, envios, recarregar, enviar }
 }

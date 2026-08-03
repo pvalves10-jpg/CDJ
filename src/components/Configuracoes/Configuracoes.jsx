@@ -7,7 +7,8 @@ import { useUsuario } from '../../hooks/useUsuario'
 import { extrairIdDrive, getConfig, setConfig } from '../../utils/config'
 import { limparCachePastas, testarConexao } from '../../services/drive'
 import { testarGemini } from '../../services/gemini'
-import { USUARIOS } from '../../utils/constantes'
+import { toast } from '../../services/toast'
+import { nomeUsuario, USUARIOS } from '../../utils/constantes'
 
 export default function Configuracoes() {
   const inicial = getConfig()
@@ -29,7 +30,7 @@ export default function Configuracoes() {
     setEtapas(null)
   }
 
-  function salvar() {
+  function salvar({ avisar = true } = {}) {
     // O campo da pasta aceita a URL inteira do Drive; guardamos só o ID.
     const normalizado = {
       ...form,
@@ -40,10 +41,11 @@ export default function Configuracoes() {
     limparCachePastas()
     setSalvo(true)
     setEtapas(null)
+    if (avisar) toast.ok('Configurações salvas neste aparelho.')
   }
 
   async function testar() {
-    salvar()
+    salvar({ avisar: false })
     setTestando(true)
     try {
       // Drive e Gemini são independentes — rodam em paralelo.
@@ -51,14 +53,19 @@ export default function Configuracoes() {
         testarConexao(),
         testarGemini(),
       ])
-      setEtapas([
+      const resultado = [
         ...doDrive,
         {
           rotulo: 'Chave do Gemini',
           ok: doGemini.ok,
           detalhe: doGemini.detalhe,
         },
-      ])
+      ]
+      setEtapas(resultado)
+
+      const falhas = resultado.filter((e) => !e.ok).length
+      if (falhas === 0) toast.ok('Tudo certo — conexão validada.')
+      else toast.erro(`${falhas} verificação(ões) falhou/falharam.`)
     } finally {
       setTestando(false)
     }
@@ -77,7 +84,10 @@ export default function Configuracoes() {
               <button
                 key={u.id}
                 type="button"
-                onClick={() => setUsuario(u.id)}
+                onClick={() => {
+                  setUsuario(u.id)
+                  toast.ok(`Agora você é ${nomeUsuario(u.id)} neste aparelho.`)
+                }}
                 aria-pressed={ativo}
                 className={[
                   'rounded-card border-2 px-3 py-3.5 text-sm font-semibold transition-colors',
@@ -161,7 +171,11 @@ export default function Configuracoes() {
         </div>
 
         <div className="mt-5 flex gap-2.5">
-          <Botao variante="secundario" onClick={salvar} className="flex-1">
+          <Botao
+            variante="secundario"
+            onClick={() => salvar()}
+            className="flex-1"
+          >
             {salvo ? 'Salvo ✓' : 'Salvar'}
           </Botao>
           <Botao onClick={testar} carregando={testando} className="flex-1">

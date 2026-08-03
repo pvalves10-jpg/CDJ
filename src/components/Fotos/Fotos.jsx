@@ -6,7 +6,7 @@ import { useFotos } from '../../hooks/useFotos'
 import { useDrive } from '../../hooks/useDrive'
 
 export default function Fotos() {
-  const { fotos, carregando, erro, setErro, envios, enviar } = useFotos()
+  const { fotos, carregando, envios, enviar } = useFotos()
   const { autenticado, conectando, conectar } = useDrive()
   const [aberta, setAberta] = useState(null)
   const inputRef = useRef(null)
@@ -33,21 +33,6 @@ export default function Fotos() {
         aria-hidden="true"
         tabIndex={-1}
       />
-
-      {erro && (
-        <div className="anim-fade-in mx-4 mt-4 flex items-start gap-2 rounded-card bg-red-50 px-3.5 py-3 text-sm text-red-700">
-          <span aria-hidden="true">⚠️</span>
-          <p className="min-w-0 flex-1 break-words">{erro}</p>
-          <button
-            type="button"
-            onClick={() => setErro(null)}
-            aria-label="Dispensar erro"
-            className="shrink-0 px-1 leading-none text-red-400 hover:text-red-700"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       {!autenticado ? (
         <div className="mx-4 mt-4 rounded-card bg-white p-5 text-center shadow-card">

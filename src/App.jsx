@@ -5,6 +5,7 @@ import Despesas from './components/Despesas/Despesas'
 import Fotos from './components/Fotos/Fotos'
 import Saldo from './components/Saldo/Saldo'
 import Configuracoes from './components/Configuracoes/Configuracoes'
+import Toasts from './components/ui/Toast'
 import { DespesasProvider } from './hooks/useDespesas'
 
 // HashRouter (e não BrowserRouter) porque o GitHub Pages é hospedagem estática:
@@ -12,6 +13,7 @@ import { DespesasProvider } from './hooks/useDespesas'
 export default function App() {
   return (
     <DespesasProvider>
+      <Toasts />
       <HashRouter>
         <Routes>
           <Route element={<Layout />}>

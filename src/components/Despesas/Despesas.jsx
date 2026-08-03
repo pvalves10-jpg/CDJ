@@ -9,6 +9,7 @@ import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
 import { lerComprovante } from '../../services/gemini'
 import { uploadComprovante } from '../../services/drive'
+import { toast } from '../../services/toast'
 import { formatarMoeda, nomeComprovante } from '../../utils/formatters'
 
 export default function Despesas() {
@@ -18,8 +19,7 @@ export default function Despesas() {
     saldo,
     carregando,
     salvando,
-    erro,
-    setErro,
+    sincronizado,
     adicionar,
     atualizar,
     remover,
@@ -95,10 +95,13 @@ export default function Despesas() {
         setAvisoGemini(
           `Não consegui identificar: ${faltando.join(', ')}. Complete abaixo.`,
         )
+      } else {
+        toast.ok('Comprovante lido — confira os dados.')
       }
     } catch (e) {
       setEmEdicao(null)
       setAvisoGemini(e.message)
+      toast.erro(e.message)
     } finally {
       setLendo(false)
       setFormAberto(true)
@@ -109,8 +112,10 @@ export default function Despesas() {
     try {
       if (emEdicao?.id) {
         await atualizar(emEdicao.id, dados)
+        toast.ok('Despesa atualizada.')
       } else {
         const criada = await adicionar(dados)
+        toast.ok(`${dados.local} — ${formatarMoeda(dados.valor)} salvo.`)
 
         // A despesa (o que mexe no saldo) já está salva. O upload vem depois:
         // se falhar, a despesa continua lá, só sem o anexo.
@@ -123,21 +128,25 @@ export default function Despesas() {
               await atualizar(criada.id, { comprovante_drive_id: enviado.id })
             }
           } catch (e) {
-            setErro(`Despesa salva, mas o comprovante não subiu: ${e.message}`)
+            toast.aviso(
+              `Despesa salva, mas o comprovante não subiu: ${e.message}`,
+            )
           }
         }
       }
       fecharForm()
     } catch {
-      // Erro já exposto pelo hook; o modal continua aberto com os dados.
+      // O hook já avisou por toast; o modal continua aberto com os dados
+      // preenchidos para o usuário tentar de novo.
     }
   }
 
   async function confirmarExclusao() {
     try {
       await remover(paraExcluir.id)
+      toast.ok('Despesa excluída.')
     } catch {
-      /* erro exibido pelo banner */
+      /* o hook já avisou por toast */
     } finally {
       setParaExcluir(null)
     }
@@ -145,19 +154,11 @@ export default function Despesas() {
 
   return (
     <div className="relative flex min-h-full flex-col">
-      {erro && (
-        <div className="anim-fade-in mx-4 mt-4 flex items-start gap-2 rounded-card bg-red-50 px-3.5 py-3 text-sm text-red-700">
-          <span aria-hidden="true">⚠️</span>
-          <p className="min-w-0 flex-1 break-words">{erro}</p>
-          <button
-            type="button"
-            onClick={() => setErro(null)}
-            aria-label="Dispensar erro"
-            className="shrink-0 px-1 leading-none text-red-400 hover:text-red-700"
-          >
-            ×
-          </button>
-        </div>
+      {autenticado && !sincronizado && despesas.length > 0 && (
+        <p className="mx-4 mt-4 rounded-card bg-outono-50 px-3.5 py-2.5 text-xs leading-relaxed text-outono-800">
+          Mostrando a última cópia salva neste aparelho — ainda não consegui
+          falar com o Drive.
+        </p>
       )}
 
       {!autenticado && (
