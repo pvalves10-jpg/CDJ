@@ -128,7 +128,13 @@ function acharArquivo_(pasta, nome) {
 /* ------------------------------------------------------------- despesas */
 
 function envelopeVazio_() {
-  return { versao: 1, despesas: [], categorias_custom: [], acertos: [] };
+  return {
+    versao: 1,
+    despesas: [],
+    categorias_custom: [],
+    acertos: [],
+    guia: { fotos_spots: {}, experiencias: {}, roteiro: {} },
+  };
 }
 
 function lerDespesas_() {

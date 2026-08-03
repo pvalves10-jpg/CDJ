@@ -59,6 +59,8 @@ export default function Home() {
         className="anim-fade-up grid grid-cols-2 gap-3"
         style={{ animationDelay: '180ms' }}
       >
+        <Atalho para="/roteiro" emoji="🗺️" rotulo="Roteiro" />
+        <Atalho para="/imperdiveis" emoji="⭐" rotulo="Imperdíveis" />
         <Atalho para="/despesas" emoji="🧾" rotulo="Despesas" />
         <Atalho para="/fotos" emoji="📸" rotulo="Fotos" />
       </nav>

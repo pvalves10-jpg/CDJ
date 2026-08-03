@@ -27,16 +27,39 @@ export function limparCachePastas() {}
 
 /* ---------------------------------------------------------------- despesas */
 
+/** Progresso do Guia (fotos por ponto, experiências e paradas do roteiro). */
+function guiaVazio() {
+  return { fotos_spots: {}, experiencias: {}, roteiro: {} }
+}
+
+function normalizarGuia(g) {
+  const base = guiaVazio()
+  if (!g || typeof g !== 'object') return base
+  const objeto = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {})
+  return {
+    fotos_spots: objeto(g.fotos_spots),
+    experiencias: objeto(g.experiencias),
+    roteiro: objeto(g.roteiro),
+  }
+}
+
 /** Envelope vazio — o formato canônico gravado no Drive. */
 export function envelopeVazio() {
-  return { versao: 1, despesas: [], categorias_custom: [], acertos: [] }
+  return {
+    versao: 1,
+    despesas: [],
+    categorias_custom: [],
+    acertos: [],
+    guia: guiaVazio(),
+  }
 }
 
 /**
  * Normaliza o conteúdo lido do Drive. Aceita tanto o array puro (arquivo criado
  * à mão) quanto o envelope-objeto, e sempre devolve o envelope.
+ * Exportada porque o cache local (useDespesas) reusa a mesma normalização.
  */
-function normalizar(bruto) {
+export function normalizar(bruto) {
   if (Array.isArray(bruto)) return { ...envelopeVazio(), despesas: bruto }
   if (bruto && typeof bruto === 'object') {
     return {
@@ -46,6 +69,7 @@ function normalizar(bruto) {
         ? bruto.categorias_custom
         : [],
       acertos: Array.isArray(bruto.acertos) ? bruto.acertos : [],
+      guia: normalizarGuia(bruto.guia),
     }
   }
   return envelopeVazio()

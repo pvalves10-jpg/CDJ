@@ -1,6 +1,8 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout/Layout'
 import Home from './components/Home/Home'
+import Roteiro from './components/Roteiro/Roteiro'
+import Imperdiveis from './components/Imperdiveis/Imperdiveis'
 import Despesas from './components/Despesas/Despesas'
 import Fotos from './components/Fotos/Fotos'
 import Saldo from './components/Saldo/Saldo'
@@ -18,6 +20,8 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
+            <Route path="/roteiro" element={<Roteiro />} />
+            <Route path="/imperdiveis" element={<Imperdiveis />} />
             <Route path="/fotos" element={<Fotos />} />
             <Route path="/despesas" element={<Despesas />} />
             <Route path="/saldo" element={<Saldo />} />

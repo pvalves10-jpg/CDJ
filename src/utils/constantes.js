@@ -12,8 +12,10 @@ export const USUARIOS = [
   { id: 'louise', nome: 'Louise', primeiroNome: 'Louise' },
 ]
 
-/** Itens do menu lateral, na ordem do CLAUDE.md. */
+/** Itens do menu lateral. */
 export const SECOES = [
+  { para: '/roteiro', emoji: '🗺️', rotulo: 'Roteiro' },
+  { para: '/imperdiveis', emoji: '⭐', rotulo: 'Imperdíveis' },
   { para: '/fotos', emoji: '📸', rotulo: 'Fotos' },
   { para: '/despesas', emoji: '🧾', rotulo: 'Despesas' },
   { para: '/saldo', emoji: '💰', rotulo: 'Saldo' },

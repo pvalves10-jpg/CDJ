@@ -11,6 +11,7 @@ import { v4 as uuid } from 'uuid'
 import {
   envelopeVazio,
   lerDespesas,
+  normalizar,
   salvarDespesas,
 } from '../services/drive'
 import { estaAutenticado, assinarAuth } from '../services/auth'
@@ -24,7 +25,9 @@ const Contexto = createContext(null)
 function lerCache() {
   try {
     const bruto = JSON.parse(localStorage.getItem(CACHE_KEY))
-    if (bruto && typeof bruto === 'object') return { ...envelopeVazio(), ...bruto }
+    // Passa pela mesma normalização do Drive: garante o formato canônico
+    // (inclusive as três subchaves de `guia`) mesmo em cache de versão antiga.
+    if (bruto && typeof bruto === 'object') return normalizar(bruto)
   } catch {
     /* cache inválido */
   }
@@ -48,6 +51,16 @@ function ordenar(despesas) {
   })
 }
 
+/** Sempre devolve `guia` com as três subchaves, mesmo se vier parcial/ausente. */
+function guiaSeguro(env) {
+  const g = env.guia ?? {}
+  return {
+    fotos_spots: g.fotos_spots ?? {},
+    experiencias: g.experiencias ?? {},
+    roteiro: g.roteiro ?? {},
+  }
+}
+
 export function DespesasProvider({ children }) {
   const [envelope, setEnvelope] = useState(() => lerCache() ?? envelopeVazio())
   const [carregando, setCarregando] = useState(false)
@@ -55,9 +68,15 @@ export function DespesasProvider({ children }) {
   /** false enquanto os dados vierem só do cache local. */
   const [sincronizado, setSincronizado] = useState(false)
 
-  // Evita que uma resposta lenta do Drive sobrescreva uma edição mais recente.
+  // envelopeRef guarda SEMPRE o estado mais recente (inclusive otimista, ainda
+  // não confirmado no Drive). É atualizado no render e, sincronamente, em cada
+  // mutação — para que gravações encadeadas partam do estado certo.
   const envelopeRef = useRef(envelope)
   envelopeRef.current = envelope
+
+  // Fila de gravações no Drive: serializa os saves para o último estado gravado
+  // ser sempre o mais novo (evita PUTs fora de ordem sobrescrevendo dados).
+  const filaRef = useRef(Promise.resolve())
 
   const recarregar = useCallback(async ({ silencioso = false } = {}) => {
     if (!estaAutenticado()) {
@@ -68,6 +87,7 @@ export function DespesasProvider({ children }) {
     try {
       const remoto = await lerDespesas()
       setEnvelope(remoto)
+      envelopeRef.current = remoto
       gravarCache(remoto)
       setSincronizado(true)
       return remoto
@@ -90,24 +110,39 @@ export function DespesasProvider({ children }) {
 
   /**
    * Aplica a mudança na UI na hora e grava no Drive em seguida.
-   * Se a gravação falhar, desfaz — o usuário nunca fica achando que salvou.
+   *
+   * `transformar(atual) => proximo` recebe SEMPRE o estado mais recente, então
+   * mutações concorrentes não se sobrescrevem. As gravações no Drive rodam em
+   * fila (serializadas). Se a gravação falhar, desfaz — a menos que uma mutação
+   * mais nova já tenha entrado por cima (aí só avisa o erro).
    */
-  const persistir = useCallback(async (proximo) => {
+  const persistir = useCallback((transformar) => {
     const anterior = envelopeRef.current
+    const proximo = transformar(anterior)
     setEnvelope(proximo)
+    envelopeRef.current = proximo
     gravarCache(proximo)
-    setSalvando(true)
-    try {
-      await salvarDespesas(proximo)
-      setSincronizado(true)
-    } catch (e) {
-      setEnvelope(anterior)
-      gravarCache(anterior)
-      toast.erro(`Não salvou no Drive: ${e.message}`)
-      throw e
-    } finally {
-      setSalvando(false)
-    }
+
+    const tarefa = filaRef.current.then(async () => {
+      setSalvando(true)
+      try {
+        await salvarDespesas(proximo)
+        setSincronizado(true)
+      } catch (e) {
+        if (envelopeRef.current === proximo) {
+          setEnvelope(anterior)
+          envelopeRef.current = anterior
+          gravarCache(anterior)
+        }
+        toast.erro(`Não salvou no Drive: ${e.message}`)
+        throw e
+      } finally {
+        setSalvando(false)
+      }
+    })
+    // .catch mantém a fila viva mesmo quando uma gravação falha.
+    filaRef.current = tarefa.catch(() => {})
+    return tarefa
   }, [])
 
   const adicionar = useCallback(
@@ -122,72 +157,66 @@ export function DespesasProvider({ children }) {
         comprovante_drive_id: dados.comprovante_drive_id ?? null,
         criado_em: new Date().toISOString(),
       }
-      const atual = envelopeRef.current
-      return persistir({
+      return persistir((atual) => ({
         ...atual,
         despesas: [despesa, ...atual.despesas],
-      }).then(() => despesa)
+      })).then(() => despesa)
     },
     [persistir],
   )
 
   const atualizar = useCallback(
-    (id, campos) => {
-      const atual = envelopeRef.current
-      return persistir({
+    (id, campos) =>
+      persistir((atual) => ({
         ...atual,
         despesas: atual.despesas.map((d) =>
           d.id === id
             ? { ...d, ...campos, valor: Number(campos.valor ?? d.valor) || 0 }
             : d,
         ),
-      })
-    },
+      })),
     [persistir],
   )
 
   const remover = useCallback(
-    (id) => {
-      const atual = envelopeRef.current
-      return persistir({
+    (id) =>
+      persistir((atual) => ({
         ...atual,
         despesas: atual.despesas.filter((d) => d.id !== id),
-      })
-    },
+      })),
     [persistir],
   )
 
   const adicionarCategoria = useCallback(
     ({ emoji, label }) => {
-      const atual = envelopeRef.current
       const id = label
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[̀-ͯ]/g, '')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '')
       if (!id) return Promise.reject(new Error('Nome de categoria inválido.'))
 
-      const jaExiste = [...CATEGORIAS_PADRAO, ...atual.categorias_custom].some(
-        (c) => c.id === id,
-      )
-      if (jaExiste) return Promise.resolve(id)
+      const existentes = [
+        ...CATEGORIAS_PADRAO,
+        ...envelopeRef.current.categorias_custom,
+      ]
+      if (existentes.some((c) => c.id === id)) return Promise.resolve(id)
 
-      return persistir({
+      return persistir((atual) => ({
         ...atual,
         categorias_custom: [
           ...atual.categorias_custom,
           { id, emoji: emoji || '📌', label },
         ],
-      }).then(() => id)
+      })).then(() => id)
     },
     [persistir],
   )
 
   const registrarAcerto = useCallback(
-    ({ de, para, valor }) => {
-      const atual = envelopeRef.current
-      return persistir({
+    ({ de, para, valor }) =>
+      persistir((atual) => ({
         ...atual,
         acertos: [
           ...atual.acertos,
@@ -199,19 +228,76 @@ export function DespesasProvider({ children }) {
             criado_em: new Date().toISOString(),
           },
         ],
-      })
-    },
+      })),
     [persistir],
   )
 
   const removerAcerto = useCallback(
-    (id) => {
-      const atual = envelopeRef.current
-      return persistir({
+    (id) =>
+      persistir((atual) => ({
         ...atual,
         acertos: atual.acertos.filter((a) => a.id !== id),
-      })
-    },
+      })),
+    [persistir],
+  )
+
+  /* --------------------------------------------------------------- guia */
+
+  const marcarExperiencia = useCallback(
+    (id, feito) =>
+      persistir((atual) => {
+        const guia = guiaSeguro(atual)
+        const experiencias = { ...guia.experiencias }
+        if (feito) experiencias[id] = true
+        else delete experiencias[id]
+        return { ...atual, guia: { ...guia, experiencias } }
+      }),
+    [persistir],
+  )
+
+  const marcarParada = useCallback(
+    (id, feito) =>
+      persistir((atual) => {
+        const guia = guiaSeguro(atual)
+        const roteiro = { ...guia.roteiro }
+        if (feito) roteiro[id] = true
+        else delete roteiro[id]
+        return { ...atual, guia: { ...guia, roteiro } }
+      }),
+    [persistir],
+  )
+
+  const adicionarFotosSpot = useCallback(
+    (spotId, fileIds) =>
+      persistir((atual) => {
+        const guia = guiaSeguro(atual)
+        const anteriores = guia.fotos_spots[spotId] ?? []
+        const combinados = [
+          ...new Set([...anteriores, ...fileIds.filter(Boolean)]),
+        ]
+        return {
+          ...atual,
+          guia: {
+            ...guia,
+            fotos_spots: { ...guia.fotos_spots, [spotId]: combinados },
+          },
+        }
+      }),
+    [persistir],
+  )
+
+  const removerFotoSpot = useCallback(
+    (spotId, fileId) =>
+      persistir((atual) => {
+        const guia = guiaSeguro(atual)
+        const restantes = (guia.fotos_spots[spotId] ?? []).filter(
+          (x) => x !== fileId,
+        )
+        const fotos_spots = { ...guia.fotos_spots }
+        if (restantes.length) fotos_spots[spotId] = restantes
+        else delete fotos_spots[spotId]
+        return { ...atual, guia: { ...guia, fotos_spots } }
+      }),
     [persistir],
   )
 
@@ -222,6 +308,7 @@ export function DespesasProvider({ children }) {
       acertos: envelope.acertos,
       categorias: [...CATEGORIAS_PADRAO, ...envelope.categorias_custom],
       saldo: calcularSaldo(despesas, envelope.acertos),
+      guia: guiaSeguro(envelope),
       carregando,
       salvando,
       sincronizado,
@@ -232,6 +319,10 @@ export function DespesasProvider({ children }) {
       adicionarCategoria,
       registrarAcerto,
       removerAcerto,
+      marcarExperiencia,
+      marcarParada,
+      adicionarFotosSpot,
+      removerFotoSpot,
     }
   }, [
     envelope,
@@ -245,6 +336,10 @@ export function DespesasProvider({ children }) {
     adicionarCategoria,
     registrarAcerto,
     removerAcerto,
+    marcarExperiencia,
+    marcarParada,
+    adicionarFotosSpot,
+    removerFotoSpot,
   ])
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>
