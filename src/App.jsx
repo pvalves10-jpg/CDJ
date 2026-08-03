@@ -1,6 +1,7 @@
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import Configuracoes from './components/Configuracoes/Configuracoes'
 import Despesas from './components/Despesas/Despesas'
+import Fotos from './components/Fotos/Fotos'
 import { DespesasProvider } from './hooks/useDespesas'
 
 // HashRouter (e não BrowserRouter) porque o GitHub Pages é hospedagem estática:
@@ -16,6 +17,14 @@ export default function App() {
             element={
               <Tela titulo="Despesas">
                 <Despesas />
+              </Tela>
+            }
+          />
+          <Route
+            path="/fotos"
+            element={
+              <Tela titulo="Fotos">
+                <Fotos />
               </Tela>
             }
           />
@@ -61,6 +70,12 @@ function Inicio() {
           className="rounded-card bg-pinheiro-700 px-5 py-3 text-sm font-semibold text-white shadow-card"
         >
           🧾 Despesas
+        </Link>
+        <Link
+          to="/fotos"
+          className="rounded-card bg-white px-5 py-3 text-sm font-semibold text-pinheiro-700 shadow-card"
+        >
+          📸 Fotos
         </Link>
         <Link
           to="/configuracoes"
