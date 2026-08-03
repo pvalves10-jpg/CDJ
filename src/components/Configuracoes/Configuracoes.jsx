@@ -6,6 +6,7 @@ import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
 import { extrairIdDrive, getConfig, setConfig } from '../../utils/config'
 import { limparCachePastas, testarConexao } from '../../services/drive'
+import { testarGemini } from '../../services/gemini'
 import { USUARIOS } from '../../utils/constantes'
 
 export default function Configuracoes() {
@@ -45,7 +46,19 @@ export default function Configuracoes() {
     salvar()
     setTestando(true)
     try {
-      setEtapas(await testarConexao())
+      // Drive e Gemini são independentes — rodam em paralelo.
+      const [doDrive, doGemini] = await Promise.all([
+        testarConexao(),
+        testarGemini(),
+      ])
+      setEtapas([
+        ...doDrive,
+        {
+          rotulo: 'Chave do Gemini',
+          ok: doGemini.ok,
+          detalhe: doGemini.detalhe,
+        },
+      ])
     } finally {
       setTestando(false)
     }

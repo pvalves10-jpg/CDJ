@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ItemDespesa from './ItemDespesa'
 import FormularioDespesa from './FormularioDespesa'
+import BotaoAdicionar from './BotaoAdicionar'
 import Modal from '../ui/Modal'
-import Botao from '../ui/Botao'
+import Botao, { Spinner } from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
 import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
-import { formatarMoeda } from '../../utils/formatters'
+import { lerComprovante } from '../../services/gemini'
+import { uploadComprovante } from '../../services/drive'
+import { formatarMoeda, nomeComprovante } from '../../utils/formatters'
 
 export default function Despesas() {
   const {
@@ -30,24 +33,103 @@ export default function Despesas() {
   const [emEdicao, setEmEdicao] = useState(null)
   const [paraExcluir, setParaExcluir] = useState(null)
 
-  function abrirNova() {
+  // Fluxo do comprovante
+  const [lendo, setLendo] = useState(false)
+  const [comprovante, setComprovante] = useState(null)
+  const [previaUrl, setPreviaUrl] = useState(null)
+  const [avisoGemini, setAvisoGemini] = useState(null)
+
+  useEffect(() => {
+    if (!previaUrl) return
+    return () => URL.revokeObjectURL(previaUrl)
+  }, [previaUrl])
+
+  function fecharForm() {
+    setFormAberto(false)
     setEmEdicao(null)
+    setComprovante(null)
+    setPreviaUrl(null)
+    setAvisoGemini(null)
+  }
+
+  function abrirManual() {
+    setEmEdicao(null)
+    setComprovante(null)
+    setPreviaUrl(null)
+    setAvisoGemini(null)
     setFormAberto(true)
   }
 
   function abrirEdicao(despesa) {
     setEmEdicao(despesa)
+    setComprovante(null)
+    setPreviaUrl(null)
+    setAvisoGemini(null)
     setFormAberto(true)
+  }
+
+  /**
+   * Foto escolhida: o Gemini extrai os campos e o formulário abre
+   * pré-preenchido. Se a leitura falhar, o formulário abre mesmo assim (em
+   * branco) — a foto continua anexada e o usuário digita.
+   */
+  async function processarFoto(arquivo) {
+    setComprovante(arquivo)
+    setPreviaUrl(URL.createObjectURL(arquivo))
+    setAvisoGemini(null)
+    setLendo(true)
+
+    try {
+      const extraido = await lerComprovante(arquivo)
+      const faltando = ['local', 'data', 'valor'].filter((c) => !extraido[c])
+
+      setEmEdicao({
+        data: extraido.data ?? undefined,
+        local: extraido.local ?? '',
+        valor: extraido.valor ?? undefined,
+        categoria: extraido.categoria ?? 'outro',
+        pagador: usuario ?? undefined,
+      })
+
+      if (faltando.length) {
+        setAvisoGemini(
+          `Não consegui identificar: ${faltando.join(', ')}. Complete abaixo.`,
+        )
+      }
+    } catch (e) {
+      setEmEdicao(null)
+      setAvisoGemini(e.message)
+    } finally {
+      setLendo(false)
+      setFormAberto(true)
+    }
   }
 
   async function salvar(dados) {
     try {
-      if (emEdicao) await atualizar(emEdicao.id, dados)
-      else await adicionar(dados)
-      setFormAberto(false)
-      setEmEdicao(null)
+      if (emEdicao?.id) {
+        await atualizar(emEdicao.id, dados)
+      } else {
+        const criada = await adicionar(dados)
+
+        // A despesa (o que mexe no saldo) já está salva. O upload vem depois:
+        // se falhar, a despesa continua lá, só sem o anexo.
+        if (comprovante) {
+          try {
+            const enviado = await uploadComprovante(comprovante, {
+              nome: nomeComprovante(dados.data, dados.local, comprovante),
+            })
+            if (enviado?.id) {
+              await atualizar(criada.id, { comprovante_drive_id: enviado.id })
+            }
+          } catch (e) {
+            setErro(`Despesa salva, mas o comprovante não subiu: ${e.message}`)
+          }
+        }
+      }
+      fecharForm()
     } catch {
-      // O erro já está em `erro`, vindo do hook; o modal segue aberto.
+      // Erro já exposto pelo hook; o modal continua aberto com os dados.
     }
   }
 
@@ -125,34 +207,48 @@ export default function Despesas() {
         )}
       </div>
 
-      {/* Acompanha a coluna de conteúdo (max-w-md centralizada), não a viewport. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-30">
-        <div className="mx-auto flex max-w-md justify-end px-5">
-          <button
-            type="button"
-            onClick={abrirNova}
-            aria-label="Nova despesa"
-            className="pointer-events-auto grid size-14 place-items-center rounded-full bg-outono-500 text-3xl leading-none text-white shadow-flutuante transition-transform active:scale-95"
-          >
-            <span aria-hidden="true" className="-mt-0.5">
-              +
-            </span>
-          </button>
-        </div>
-      </div>
+      <BotaoAdicionar
+        aoEscolherFoto={processarFoto}
+        aoEscolherManual={abrirManual}
+      />
+
+      {lendo && <OverlayLendo />}
 
       <FormularioDespesa
         aberto={formAberto}
-        aoFechar={() => {
-          setFormAberto(false)
-          setEmEdicao(null)
-        }}
+        aoFechar={fecharForm}
         aoSalvar={salvar}
         despesa={emEdicao}
         categorias={categorias}
         usuarioAtual={usuario}
         aoCriarCategoria={adicionarCategoria}
         salvando={salvando}
+        cabecalho={
+          comprovante || avisoGemini ? (
+            <div className="mb-4 space-y-3">
+              {previaUrl && (
+                <div className="flex items-center gap-3 rounded-card bg-white p-2.5 shadow-card">
+                  <img
+                    src={previaUrl}
+                    alt="Prévia do comprovante"
+                    className="size-16 shrink-0 rounded-lg object-cover"
+                  />
+                  <div className="min-w-0 text-xs leading-relaxed text-pinheiro-500">
+                    <p className="font-semibold text-pinheiro-700">
+                      Comprovante anexado
+                    </p>
+                    <p>Será enviado para CDJ/DESPESAS ao salvar.</p>
+                  </div>
+                </div>
+              )}
+              {avisoGemini && (
+                <p className="rounded-card bg-outono-50 px-3.5 py-2.5 text-sm leading-relaxed text-outono-800">
+                  {avisoGemini}
+                </p>
+              )}
+            </div>
+          ) : null
+        }
       />
 
       <Modal
@@ -180,11 +276,26 @@ export default function Despesas() {
         }
       >
         <p className="text-sm leading-relaxed text-pinheiro-600">
-          Excluir <strong className="text-pinheiro-900">{paraExcluir?.local}</strong>{' '}
-          de {formatarMoeda(paraExcluir?.valor)}? Isso recalcula o saldo e não
-          pode ser desfeito.
+          Excluir{' '}
+          <strong className="text-pinheiro-900">{paraExcluir?.local}</strong> de{' '}
+          {formatarMoeda(paraExcluir?.valor)}? Isso recalcula o saldo e não pode
+          ser desfeito.
         </p>
       </Modal>
+    </div>
+  )
+}
+
+function OverlayLendo() {
+  return (
+    <div className="anim-fade-in fixed inset-0 z-50 grid place-items-center bg-pinheiro-900/55 px-8">
+      <div className="flex flex-col items-center gap-3 rounded-card bg-white px-8 py-7 text-center shadow-flutuante">
+        <Spinner className="size-7 text-pinheiro-600" />
+        <p className="font-semibold text-pinheiro-800">Lendo comprovante...</p>
+        <p className="max-w-[13rem] text-xs leading-relaxed text-pinheiro-500">
+          O Gemini está extraindo local, data e valor da foto.
+        </p>
+      </div>
     </div>
   )
 }
@@ -195,9 +306,7 @@ function EstadoVazio({ autenticado }) {
       <span aria-hidden="true" className="text-5xl">
         🧾
       </span>
-      <p className="font-semibold text-pinheiro-700">
-        Nenhuma despesa ainda
-      </p>
+      <p className="font-semibold text-pinheiro-700">Nenhuma despesa ainda</p>
       <p className="max-w-[15rem] text-sm leading-relaxed text-pinheiro-500">
         {autenticado
           ? 'Toque no + para adicionar a primeira!'

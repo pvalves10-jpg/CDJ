@@ -33,6 +33,9 @@ export default function FormularioDespesa({
   const [erros, setErros] = useState({})
   const [novaCategoria, setNovaCategoria] = useState(null)
 
+  // Um objeto vindo do Gemini traz campos mas não tem id: é criação, não edição.
+  const ehEdicao = Boolean(despesa?.id)
+
   // Reidrata quando o modal reabre com outra despesa (ou com dados do Gemini).
   useEffect(() => {
     if (aberto) {
@@ -86,7 +89,7 @@ export default function FormularioDespesa({
     <Modal
       aberto={aberto}
       aoFechar={aoFechar}
-      titulo={despesa ? 'Editar despesa' : 'Nova despesa'}
+      titulo={ehEdicao ? 'Editar despesa' : 'Nova despesa'}
       rodape={
         <div className="flex gap-2.5">
           <Botao variante="secundario" onClick={aoFechar} className="flex-1">
