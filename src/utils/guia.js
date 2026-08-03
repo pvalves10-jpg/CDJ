@@ -38,6 +38,66 @@ export function linkWaze(local) {
 }
 
 /**
+ * Coordenadas (lat, lon) dos destinos, para chamar corrida (Uber/99).
+ * Geocodificadas e conferidas uma a uma (OpenStreetMap/Google/Wikipédia),
+ * todas dentro dos limites de Campos do Jordão. A chave é o MESMO texto `local`
+ * usado nas paradas do ROTEIRO — se um local não estiver aqui, os botões de
+ * corrida simplesmente não aparecem para ele.
+ */
+export const COORD_DESTINO = {
+  'Rodoviária de Campos do Jordão': { lat: -22.7247748, lon: -45.5803492 },
+  'Portal de Campos do Jordão': { lat: -22.755757, lon: -45.610118 },
+  'Pousada Café Poesia': { lat: -22.7265, lon: -45.562 },
+  'Nonna Iza Campos do Jordão': { lat: -22.71745, lon: -45.56843 },
+  'Vila Holandesa Campos do Jordão': { lat: -22.7228257, lon: -45.563468 },
+  'Vila Capivari Campos do Jordão': { lat: -22.719, lon: -45.5685 },
+  'Royal Trdelnik Campos do Jordão': { lat: -22.7172, lon: -45.5668 },
+  'Metaverso Campos do Jordão': { lat: -22.7171, lon: -45.5675 },
+  'Teleférico Campos do Jordão': { lat: -22.7171461, lon: -45.5651785 },
+  'Trenó da Montanha Campos do Jordão': { lat: -22.7133037, lon: -45.566185 },
+  'Pastel do Maluf Campos do Jordão': { lat: -22.7191844, lon: -45.5665702 },
+  'Amantikir Parque Campos do Jordão': { lat: -22.7837241, lon: -45.6076094 },
+  'Raiz de Campos do Jordão': { lat: -22.7182705, lon: -45.5651532 },
+  'Bairro Sans Souci Campos do Jordão': { lat: -22.7259299, lon: -45.5798123 },
+  'Krokodilo Campos do Jordão': { lat: -22.730657, lon: -45.569987 },
+  'Pico do Itapeva Campos do Jordão': { lat: -22.7669812, lon: -45.522482 },
+  'Mão Gigante Campos do Jordão': { lat: -22.7643757, lon: -45.5408285 },
+  'Horto Florestal Campos do Jordão': { lat: -22.6840583, lon: -45.4549157 },
+  'Turundu Campos do Jordão': { lat: -22.766556, lon: -45.603448 },
+  'Lagoinha Campos do Jordão': { lat: -22.7088549, lon: -45.5476912 },
+}
+
+/** Há coordenada para chamar corrida até este local? */
+export function temCoordenada(local) {
+  return Boolean(COORD_DESTINO[local])
+}
+
+/** Endereço legível do destino (rótulo — a corrida é fixada pela coordenada). */
+export function enderecoDestino(local) {
+  return local.includes('Campos do Jordão')
+    ? `${local} - SP`
+    : `${local}${SUFIXO_LOCAL}`
+}
+
+/**
+ * Universal link do Uber: abre o app com PARTIDA = localização atual e DESTINO
+ * fixado nas coordenadas do local. O app então mostra a estimativa de preço,
+ * faltando só o usuário confirmar. Retorna null se não houver coordenada.
+ * (Precisa ser disparado por um clique do usuário para o iOS honrar o link.)
+ */
+export function linkUber(local) {
+  const c = COORD_DESTINO[local]
+  if (!c) return null
+  const nome = encodeURIComponent(local)
+  const endereco = encodeURIComponent(enderecoDestino(local))
+  return (
+    'https://m.uber.com/ul/?action=setPickup&pickup=my_location' +
+    `&dropoff[latitude]=${c.lat}&dropoff[longitude]=${c.lon}` +
+    `&dropoff[nickname]=${nome}&dropoff[formatted_address]=${endereco}`
+  )
+}
+
+/**
  * Roteiro dia a dia. Cada parada com `local` ganha botões de Maps/Waze; com
  * `info` ganha o cartão "sobre o lugar" (ver LOCAIS).
  */
