@@ -3,6 +3,7 @@ import { useDespesas } from '../../hooks/useDespesas'
 import { useClima } from '../../hooks/useClima'
 import { useUsuario } from '../../hooks/useUsuario'
 import LinksLocal from '../ui/LinksLocal'
+import AtivarLocalizacao from '../ui/AtivarLocalizacao'
 import FormularioDespesa from '../Despesas/FormularioDespesa'
 import { toast } from '../../services/toast'
 import { LOCAIS, ROTEIRO } from '../../utils/guia'
@@ -44,6 +45,8 @@ export default function Roteiro() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-24">
+      <AtivarLocalizacao />
+
       {/* Abas dos dias */}
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
         {ROTEIRO.map((d, i) => {

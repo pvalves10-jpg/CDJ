@@ -11,6 +11,7 @@ export default function ItemDespesa({
   categorias,
   onEditar,
   onExcluir,
+  onVerComprovante,
 }) {
   const [dx, setDx] = useState(0)
   const [arrastando, setArrastando] = useState(false)
@@ -127,9 +128,16 @@ export default function ItemDespesa({
               {primeiroNome(despesa.pagador)} pagou
             </span>
             {despesa.comprovante_drive_id && (
-              <span title="Tem comprovante" aria-label="Tem comprovante">
+              <button
+                type="button"
+                onClick={() => onVerComprovante?.(despesa)}
+                onPointerDown={(e) => e.stopPropagation()}
+                aria-label="Ver comprovante"
+                title="Ver comprovante"
+                className="-my-1 rounded-full px-1 py-1 leading-none text-pinheiro-400 hover:text-pinheiro-700"
+              >
                 📎
-              </span>
+              </button>
             )}
           </p>
         </div>

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import ResumoSaldo from './ResumoSaldo'
 import Cartao from '../ui/Cartao'
 import Botao from '../ui/Botao'
 import Modal from '../ui/Modal'
+import VisualizadorFoto from '../Fotos/VisualizadorFoto'
 import { useDespesas } from '../../hooks/useDespesas'
 import { toast } from '../../services/toast'
 import { formatarMoeda, formatarData } from '../../utils/formatters'
@@ -21,6 +22,23 @@ export default function Saldo() {
   } = useDespesas()
 
   const [confirmarPix, setConfirmarPix] = useState(false)
+  const [indiceComp, setIndiceComp] = useState(null)
+
+  // Comprovantes já enviados ao Drive, do mais recente ao mais antigo.
+  const comprovantes = useMemo(
+    () =>
+      despesas
+        .filter((d) => d.comprovante_drive_id)
+        .map((d) => ({
+          id: d.comprovante_drive_id,
+          name: `${d.local || 'Despesa'} · ${formatarMoeda(d.valor)}`,
+        })),
+    [despesas],
+  )
+
+  function navegarComp(passo) {
+    setIndiceComp((i) => (i + passo + comprovantes.length) % comprovantes.length)
+  }
 
   async function compartilhar() {
     const texto = textoDoSaldo(saldo, formatarMoeda, nomeUsuario)
@@ -157,6 +175,13 @@ export default function Saldo() {
             <span aria-hidden="true">✅</span> Marcar Pix como feito
           </Botao>
         )}
+
+        {comprovantes.length > 0 && (
+          <Botao largura variante="secundario" onClick={() => setIndiceComp(0)}>
+            <span aria-hidden="true">🧾</span> Ver comprovantes (
+            {comprovantes.length})
+          </Botao>
+        )}
       </div>
 
       {acertos.length > 0 && (
@@ -194,6 +219,15 @@ export default function Saldo() {
             ))}
           </ul>
         </Cartao>
+      )}
+
+      {indiceComp !== null && comprovantes.length > 0 && (
+        <VisualizadorFoto
+          fotos={comprovantes}
+          indice={indiceComp}
+          aoFechar={() => setIndiceComp(null)}
+          aoNavegar={navegarComp}
+        />
       )}
 
       <Modal

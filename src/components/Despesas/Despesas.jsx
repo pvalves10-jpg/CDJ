@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import ItemDespesa from './ItemDespesa'
 import FormularioDespesa from './FormularioDespesa'
 import BotaoAdicionar from './BotaoAdicionar'
+import VisualizadorFoto from '../Fotos/VisualizadorFoto'
 import Modal from '../ui/Modal'
 import Botao, { Spinner } from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
@@ -33,6 +34,7 @@ export default function Despesas() {
   const [formAberto, setFormAberto] = useState(false)
   const [emEdicao, setEmEdicao] = useState(null)
   const [paraExcluir, setParaExcluir] = useState(null)
+  const [verComprovante, setVerComprovante] = useState(null)
 
   // Fluxo do comprovante
   const [lendo, setLendo] = useState(false)
@@ -200,6 +202,7 @@ export default function Despesas() {
                 categorias={categorias}
                 onEditar={abrirEdicao}
                 onExcluir={setParaExcluir}
+                onVerComprovante={setVerComprovante}
               />
             ))}
           </ul>
@@ -249,6 +252,20 @@ export default function Despesas() {
           ) : null
         }
       />
+
+      {verComprovante && (
+        <VisualizadorFoto
+          fotos={[
+            {
+              id: verComprovante.comprovante_drive_id,
+              name: `Comprovante — ${verComprovante.local || 'despesa'} · ${formatarMoeda(verComprovante.valor)}`,
+            },
+          ]}
+          indice={0}
+          aoFechar={() => setVerComprovante(null)}
+          aoNavegar={() => {}}
+        />
+      )}
 
       <Modal
         aberto={Boolean(paraExcluir)}

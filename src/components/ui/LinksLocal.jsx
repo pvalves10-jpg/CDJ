@@ -1,21 +1,56 @@
 import { useState } from 'react'
-import { linkMaps, linkWaze, linkUber, temCoordenada } from '../../utils/guia'
+import {
+  linkMaps,
+  linkWaze,
+  linkUber,
+  temCoordenada,
+  COORD_DESTINO,
+} from '../../utils/guia'
 import { abrir99 } from '../../utils/corrida'
+import { useLocalizacao } from '../../hooks/useLocalizacao'
+import { distanciaKm, estimarCorrida, formatarKm } from '../../utils/distancia'
 import { toast } from '../../services/toast'
 
 /**
  * Ações de um local: navegar (Google Maps + Waze) e chamar corrida (Uber + 99).
- * As pílulas de corrida só aparecem quando há coordenada para o local.
+ * As pílulas de corrida só aparecem quando há coordenada para o local. Com a
+ * localização ativa, mostra distância + estimativa e abre o Uber com a partida.
  */
 export default function LinksLocal({ local, className = '' }) {
+  const { posicao, status } = useLocalizacao()
   if (!local) return null
-  const uber = linkUber(local)
+
+  const destino = COORD_DESTINO[local]
+  const origem = posicao && (status === 'ok' || status === 'cache') ? posicao : null
+  const uber = linkUber(local, origem)
+
+  const km = destino && origem ? distanciaKm(origem, destino) : null
+  const estimativa = km != null ? estimarCorrida(km) : null
+
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
-      <Pilula href={linkMaps(local)} emoji="📍" rotulo="Maps" />
-      <Pilula href={linkWaze(local)} emoji="🧭" rotulo="Waze" />
-      {uber && <PilulaUber href={uber} />}
-      {temCoordenada(local) && <Pilula99 local={local} />}
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      <div className="flex flex-wrap gap-2">
+        <Pilula href={linkMaps(local)} emoji="📍" rotulo="Maps" />
+        <Pilula href={linkWaze(local)} emoji="🧭" rotulo="Waze" />
+        {uber && <PilulaUber href={uber} />}
+        {temCoordenada(local) && <Pilula99 local={local} />}
+      </div>
+
+      {estimativa && (
+        <p className="flex flex-wrap items-center gap-x-1.5 text-xs text-pinheiro-500">
+          <span aria-hidden="true">📍</span>
+          <span className="font-semibold text-pinheiro-600">
+            {formatarKm(estimativa.km)}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>~{estimativa.minutos} min de carro</span>
+          <span aria-hidden="true">·</span>
+          <span>
+            corrida ≈ R$ {estimativa.precoMin}–{estimativa.precoMax}
+          </span>
+          <span className="text-pinheiro-400">(aprox.)</span>
+        </p>
+      )}
     </div>
   )
 }
@@ -37,7 +72,7 @@ function Pilula({ href, emoji, rotulo }) {
   )
 }
 
-/** Uber — abre o app com destino já traçado (partida = localização atual). */
+/** Uber — abre o app com destino já traçado (partida = sua localização). */
 function PilulaUber({ href }) {
   return (
     <a

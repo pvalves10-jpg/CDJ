@@ -80,18 +80,24 @@ export function enderecoDestino(local) {
 }
 
 /**
- * Universal link do Uber: abre o app com PARTIDA = localização atual e DESTINO
- * fixado nas coordenadas do local. O app então mostra a estimativa de preço,
- * faltando só o usuário confirmar. Retorna null se não houver coordenada.
- * (Precisa ser disparado por um clique do usuário para o iOS honrar o link.)
+ * Universal link do Uber: abre o app com DESTINO fixado nas coordenadas do
+ * local. Se `origem` (a localização atual do usuário) for informada, fixa a
+ * PARTIDA nela; senão, usa `pickup=my_location` (o próprio app pega o GPS). O
+ * app então mostra a estimativa de preço, faltando só confirmar. Retorna null
+ * se não houver coordenada. (Dispare a partir de um clique para o iOS honrar.)
  */
-export function linkUber(local) {
+export function linkUber(local, origem) {
   const c = COORD_DESTINO[local]
   if (!c) return null
   const nome = encodeURIComponent(local)
   const endereco = encodeURIComponent(enderecoDestino(local))
+  const partida =
+    origem && Number.isFinite(origem.lat) && Number.isFinite(origem.lon)
+      ? `pickup[latitude]=${origem.lat}&pickup[longitude]=${origem.lon}` +
+        '&pickup[nickname]=Minha%20localiza%C3%A7%C3%A3o'
+      : 'pickup=my_location'
   return (
-    'https://m.uber.com/ul/?action=setPickup&pickup=my_location' +
+    `https://m.uber.com/ul/?action=setPickup&${partida}` +
     `&dropoff[latitude]=${c.lat}&dropoff[longitude]=${c.lon}` +
     `&dropoff[nickname]=${nome}&dropoff[formatted_address]=${endereco}`
   )
