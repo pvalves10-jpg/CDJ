@@ -25,3 +25,16 @@ dist-ssr
 
 # ⚠️ Chaves de API — nunca commitar
 src/config.js
+
+# Conteúdo que vive só no Google Drive — não é código e não vai para o GitHub.
+# Padrões ancorados na raiz (/) de propósito: src/assets/louise.jpg continua
+# versionável, só a bagunça da raiz da pasta do Drive é que fica de fora.
+/FOTOS/
+/DESPESAS/
+/*.jpg
+/*.jpeg
+/*.png
+/*.webp
+/*.docx
+/*.pdf
+/PROMPT_CLAUDE_CODE.md
