@@ -1,4 +1,12 @@
 import { hojeISO } from './formatters'
+import portalFoto from '../assets/roteiro/portal.jpg'
+import vilaHolandesaFoto from '../assets/roteiro/vila_holandesa.jpg'
+import capivariFoto from '../assets/roteiro/capivari.jpg'
+import royalFoto from '../assets/roteiro/royal_trdelnik.jpg'
+import telefericoFoto from '../assets/roteiro/teleferico.jpg'
+import amantikirFoto from '../assets/roteiro/amantikir.jpg'
+import itapevaFoto from '../assets/roteiro/itapeva.jpg'
+import hortoFoto from '../assets/roteiro/horto.jpg'
 
 /**
  * Conteúdo do Guia Premium da viagem (Louise & Paulo Victor — Campos do Jordão,
@@ -7,6 +15,9 @@ import { hojeISO } from './formatters'
  * O que é progresso (o que já foi feito / fotografado) NÃO fica aqui — fica no
  * `despesas.json` no Drive (campo `guia`), para sincronizar entre os dois
  * celulares. Ver useDespesas / drive.js.
+ *
+ * As descrições e fotos dos locais (LOCAIS) foram pesquisadas na web; as fotos
+ * são de licença livre (Wikimedia Commons), embutidas para funcionar offline.
  */
 
 /** Campos do Jordão — usado para a previsão do tempo. */
@@ -27,8 +38,8 @@ export function linkWaze(local) {
 }
 
 /**
- * Roteiro dia a dia. Cada parada com `local` ganha botões de Maps/Waze; sem
- * `local` (descanso, pôr do sol, almoço) é só um item da agenda.
+ * Roteiro dia a dia. Cada parada com `local` ganha botões de Maps/Waze; com
+ * `info` ganha o cartão "sobre o lugar" (ver LOCAIS).
  */
 export const ROTEIRO = [
   {
@@ -38,17 +49,17 @@ export const ROTEIRO = [
     titulo: 'Chegada, Capivari e primeira noite',
     paradas: [
       { id: 'd1-rodoviaria', nome: 'Rodoviária', local: 'Rodoviária de Campos do Jordão' },
-      { id: 'd1-portal', nome: 'Portal de Campos', local: 'Portal de Campos do Jordão', obs: 'Fotos icônicas 📸' },
-      { id: 'd1-pousada', nome: 'Pousada', local: 'Pousada Café Poesia', obs: 'Check-in' },
-      { id: 'd1-nonna', nome: 'Nonna Iza', local: 'Nonna Iza Campos do Jordão', obs: 'Almoço' },
-      { id: 'd1-vila', nome: 'Vila Holandesa', local: 'Vila Holandesa Campos do Jordão' },
-      { id: 'd1-capivari', nome: 'Capivari', local: 'Vila Capivari Campos do Jordão' },
+      { id: 'd1-portal', nome: 'Portal de Campos', local: 'Portal de Campos do Jordão', obs: 'Fotos icônicas 📸', info: 'portal' },
+      { id: 'd1-pousada', nome: 'Pousada', local: 'Pousada Café Poesia', obs: 'Check-in', info: 'cafe_poesia' },
+      { id: 'd1-nonna', nome: 'Nonna Iza', local: 'Nonna Iza Campos do Jordão', obs: 'Almoço', info: 'nonna_iza' },
+      { id: 'd1-vila', nome: 'Vila Holandesa', local: 'Vila Holandesa Campos do Jordão', info: 'vila_holandesa' },
+      { id: 'd1-capivari', nome: 'Capivari', local: 'Vila Capivari Campos do Jordão', info: 'capivari' },
       { id: 'd1-chocolate', nome: 'Chocolate quente', obs: 'Imperdível ☕' },
-      { id: 'd1-royal', nome: 'Royal Trdelnik', local: 'Royal Trdelnik Campos do Jordão' },
-      { id: 'd1-metaverso', nome: 'Metaverso', local: 'Metaverso Campos do Jordão' },
-      { id: 'd1-teleferico', nome: 'Teleférico', local: 'Teleférico Campos do Jordão' },
-      { id: 'd1-treno', nome: 'Trenó', local: 'Trenó da Montanha Campos do Jordão' },
-      { id: 'd1-pastel', nome: 'Pastel do Maluf', local: 'Pastel do Maluf Campos do Jordão', obs: 'Imperdível 🥟' },
+      { id: 'd1-royal', nome: 'Royal Trdelnik', local: 'Royal Trdelnik Campos do Jordão', info: 'royal_trdelnik' },
+      { id: 'd1-metaverso', nome: 'Metaverso', local: 'Metaverso Campos do Jordão', info: 'metaverso' },
+      { id: 'd1-teleferico', nome: 'Teleférico', local: 'Teleférico Campos do Jordão', info: 'teleferico' },
+      { id: 'd1-treno', nome: 'Trenó', local: 'Trenó da Montanha Campos do Jordão', info: 'treno' },
+      { id: 'd1-pastel', nome: 'Pastel do Maluf', local: 'Pastel do Maluf Campos do Jordão', obs: 'Imperdível 🥟', info: 'pastel_maluf' },
     ],
   },
   {
@@ -57,11 +68,11 @@ export const ROTEIRO = [
     rotulo: 'Dia 2',
     titulo: 'Amantikir, vinho e fondue',
     paradas: [
-      { id: 'd2-amantikir', nome: 'Amantikir', local: 'Amantikir Parque Campos do Jordão', obs: 'De manhã' },
-      { id: 'd2-raiz', nome: 'Raiz de Campos', local: 'Raiz de Campos do Jordão', obs: 'Aceita VR' },
-      { id: 'd2-sanssouci', nome: 'Sans Souci', local: 'Bairro Sans Souci Campos do Jordão' },
+      { id: 'd2-amantikir', nome: 'Amantikir', local: 'Amantikir Parque Campos do Jordão', obs: 'De manhã', info: 'amantikir' },
+      { id: 'd2-raiz', nome: 'Raiz de Campos', local: 'Raiz de Campos do Jordão', obs: 'Aceita VR', info: 'raiz_campos' },
+      { id: 'd2-sanssouci', nome: 'Sans Souci', local: 'Bairro Sans Souci Campos do Jordão', info: 'sans_souci' },
       { id: 'd2-descanso', nome: 'Descanso', obs: 'Descanso na pousada' },
-      { id: 'd2-fondue', nome: 'Fondue (Krokodilo)', local: 'Krokodilo Campos do Jordão', obs: 'Imperdível 🫕' },
+      { id: 'd2-fondue', nome: 'Fondue (Krokodilo)', local: 'Krokodilo Campos do Jordão', obs: 'Imperdível 🫕', info: 'krokodilo' },
     ],
   },
   {
@@ -70,11 +81,11 @@ export const ROTEIRO = [
     rotulo: 'Dia 3',
     titulo: 'Itapeva, Mão Gigante e pôr do sol',
     paradas: [
-      { id: 'd3-itapeva', nome: 'Pico do Itapeva', local: 'Pico do Itapeva Campos do Jordão', obs: 'Imperdível ⛰️' },
-      { id: 'd3-mao', nome: 'Mão Gigante', local: 'Mão Gigante Campos do Jordão' },
-      { id: 'd3-horto', nome: 'Horto Florestal', local: 'Horto Florestal Campos do Jordão' },
+      { id: 'd3-itapeva', nome: 'Pico do Itapeva', local: 'Pico do Itapeva Campos do Jordão', obs: 'Imperdível ⛰️', info: 'itapeva' },
+      { id: 'd3-mao', nome: 'Mão Gigante', local: 'Mão Gigante Campos do Jordão', info: 'mao_gigante' },
+      { id: 'd3-horto', nome: 'Horto Florestal', local: 'Horto Florestal Campos do Jordão', info: 'horto' },
       { id: 'd3-pordosol', nome: 'Pôr do sol', obs: 'Pôr do sol na Mão Gigante 🌅' },
-      { id: 'd3-jantar', nome: 'Jantar no Capivari', local: 'Vila Capivari Campos do Jordão' },
+      { id: 'd3-jantar', nome: 'Jantar no Capivari', local: 'Vila Capivari Campos do Jordão', info: 'capivari' },
     ],
   },
   {
@@ -83,8 +94,8 @@ export const ROTEIRO = [
     rotulo: 'Dia 4',
     titulo: 'Turundu, Lagoinha e retorno',
     paradas: [
-      { id: 'd4-turundu', nome: 'Turundu', local: 'Turundu Campos do Jordão', obs: 'Café da manhã' },
-      { id: 'd4-lagoinha', nome: 'Lagoinha', local: 'Lagoinha Campos do Jordão' },
+      { id: 'd4-turundu', nome: 'Turundu', local: 'Turundu Campos do Jordão', obs: 'Café da manhã', info: 'turundu' },
+      { id: 'd4-lagoinha', nome: 'Lagoinha', local: 'Lagoinha Campos do Jordão', info: 'lagoinha' },
       { id: 'd4-almoco', nome: 'Almoço', obs: 'Último almoço' },
       { id: 'd4-retorno', nome: 'Retorno', local: 'Rodoviária de Campos do Jordão', obs: 'Volta pra casa' },
     ],
@@ -120,6 +131,108 @@ export const EXPERIENCIAS = [
   { id: 'capivari', nome: 'Capivari à noite', emoji: '🌃' },
   { id: 'itapeva', nome: 'Pico do Itapeva', emoji: '⛰️' },
 ]
+
+/**
+ * Informações dos locais (pesquisadas na web). `foto` é uma imagem de licença
+ * livre embutida (ou null quando não há uma confiável).
+ */
+export const LOCAIS = {
+  portal: {
+    foto: portalFoto,
+    resumo: `Pórtico de entrada da cidade, na rodovia SP-123, inaugurado em 1986 no estilo enxaimel que imita a arquitetura dos alpes suíços. É um dos cartões-postais mais fotografados da "cidade mais alta do Brasil", cercado por canteiros floridos e com um termômetro de rua ao lado.`,
+    dica: `Visita gratuita e rápida — pare ao chegar para fotografar. A luz do fim da tarde rende as melhores fotos; no inverno, confira o termômetro de rua ao lado.`,
+  },
+  cafe_poesia: {
+    foto: null,
+    resumo: `Pousada aconchegante, a primeira da região construída em containers adaptados, na Vila Inglesa (~800 m do centro e de Capivari). Quartos superiores com lareira e hidromassagem, pet-friendly, ótimo café da manhã e um charmoso café da tarde (nota 8,9 no Booking).`,
+    dica: `Reserve com antecedência no inverno e avise o horário de chegada por WhatsApp. Escolha um quarto superior com lareira e hidro para curtir o frio.`,
+  },
+  nonna_iza: {
+    foto: null,
+    resumo: `Restaurante self-service em frente ao Parque Capivari, conhecido pelo buffet de comida caseira à vontade por um preço acessível — boa pedida para comer bem gastando pouco num dos pontos mais movimentados.`,
+    dica: `Buffet à vontade por ~R$ 60/pessoa. Chegue mais cedo no pico do almoço para evitar fila.`,
+  },
+  vila_holandesa: {
+    foto: vilaHolandesaFoto,
+    resumo: `Condomínio residencial no Capivari, dos anos 1970, feito para trazer um pedaço da Holanda à serra: telhados pontiagudos, tijolos aparentes e um moinho de vento na entrada. Um dos cenários mais fotografados da cidade.`,
+    dica: `É área residencial — não se entra; aproveite a fachada e o moinho de fora. Combine com um passeio a pé pelo centro do Capivari, ao lado. Luz do fim da tarde é a melhor.`,
+  },
+  capivari: {
+    foto: capivariFoto,
+    resumo: `Coração turístico de Campos do Jordão, com arquitetura alpina e a maior parte dos restaurantes, cafés e lojas. Ali ficam a Praça e o Parque Capivari e a estação do teleférico do Morro do Elefante. Atmosfera charmosa e vida noturna animada.`,
+    dica: `Vá no fim da tarde/noite, quando esfria e tudo se ilumina — melhor hora para fondue e chocolate quente. No inverno, reserve mesa com antecedência.`,
+  },
+  royal_trdelnik: {
+    foto: royalFoto,
+    resumo: `Loja no Parque Capivari especializada no trdelník — doce da Europa Central feito de massa em espiral assada sobre brasas, com açúcar e canela. Nasceu em Gramado e serve recheios como Nutella, doce de leite e sorvete.`,
+    dica: `Peça o trudel com sorvete ou Nutella e coma na hora, quentinho. Ótimo como sobremesa depois de passear pelo parque.`,
+  },
+  metaverso: {
+    foto: null,
+    resumo: `Cine imersivo em 360° no Parque Capivari, com projeção envolvente, som 3D e um simulador de realidade virtual de parapente. Experiência sensorial rápida e diferentona no coração da Vila Capivari.`,
+    dica: `Fica no Parque Capivari (abre das 9h às 21h). O combo das duas experiências sai por ~R$ 78/pessoa (ou ~R$ 140 o casal).`,
+  },
+  teleferico: {
+    foto: telefericoFoto,
+    resumo: `O teleférico mais antigo do Brasil leva ao topo do Morro do Elefante (~1.800 m), com vista deslumbrante da Vila Capivari e da Serra da Mantiqueira, entre araucárias. Reformado em 2022, tem cadeirinha aberta ou cabine fechada.`,
+    dica: `Vá no fim da tarde para o pôr do sol. Quem não curte altura pode subir de carro (menos de 10 min de Capivari); a entrada no parque do topo é gratuita.`,
+  },
+  treno: {
+    foto: null,
+    resumo: `Trenó de montanha no alto do Morro do Elefante: um carrinho sobre ~485 m de trilhos que desce a até 40 km/h, com você controlando a velocidade pelos freios. É o mais alto do Brasil, de fabricação alemã, individual ou em dupla.`,
+    dica: `Chega-se pelo teleférico ou de carro. ~R$ 50 (individual) / ~R$ 62 (dupla); altura mínima 1,10 m. Vá cedo na alta temporada para evitar fila.`,
+  },
+  pastel_maluf: {
+    foto: null,
+    resumo: `Pastelaria tradicional na Vila Capivari, famosa pelo pastel gigante de 32 cm e pelas paredes cobertas de fotos de celebridades ("Pastelão dos Artistas"). O pastel "Maluf" leva carne, salsa, tomate, azeitona e dois ovos.`,
+    dica: `Peça o pastel "Maluf" (campeão de vendas). No inverno chega a abrir 24h e fica cheio — fuja dos horários de pico.`,
+  },
+  amantikir: {
+    foto: amantikirFoto,
+    resumo: `Complexo de jardins temáticos (26 jardins, 700+ espécies) inspirados em vários lugares do mundo. Destaques: os labirintos (um dos maiores de grama do mundo), lagos, casa na árvore e mirantes. Uma das atrações mais bem avaliadas da cidade.`,
+    dica: `Vá pela manhã (abre 9h, entrada até 15h30). Use calçado confortável — tem bastante caminhada em terreno inclinado. Estacionamento gratuito.`,
+  },
+  raiz_campos: {
+    foto: null,
+    resumo: `Restaurante de culinária brasileira em Vila Capivari, em casa aconchegante com música ao vivo e área externa. Cardápio variado (fondue, feijoada, grelhados, risoto), boa reputação por comida saborosa e atendimento simpático.`,
+    dica: `A sequência de fondue é o destaque para o clima de serra. Prepare-se para couvert artístico (~R$ 15) e faixa média de R$ 60 a R$ 120/pessoa.`,
+  },
+  sans_souci: {
+    foto: null,
+    resumo: `Café, bistrô e confeitaria de estilo francês — um dos endereços gastronômicos mais famosos da cidade, na Vila Jaguaribe, pertinho de Capivari. Já foi eleito o melhor café de Campos pela Veja Comer & Beber. Doces artesanais, croissants, quiches e café premiado.`,
+    dica: `Não fazem reserva e costuma ter fila — chegue cedo (abre 10h). Ótimo para café da manhã ou da tarde; ~R$ 40 a R$ 60/pessoa.`,
+  },
+  krokodilo: {
+    foto: null,
+    resumo: `Restaurante temático famoso pela decoração rústica com enormes esculturas de crocodilos (entra-se pela boca de um deles). Conhecido pelo rodízio de fondue com ótimo preço e por carnes exóticas (javali, jacaré), trutas e pizzas.`,
+    dica: `Confira a forma de pagamento antes (tradicionalmente só dinheiro/transferência). Peça o rodízio de fondue e vá mais cedo para evitar fila.`,
+  },
+  itapeva: {
+    foto: itapevaFoto,
+    resumo: `Um dos pontos mais altos do Brasil acessíveis de carro (~2.030 m), na divisa com Pindamonhangaba. Mirante de madeira com vista panorâmica da Serra da Mantiqueira — dá para avistar 10 a 15 cidades. Tem campos de lavanda, lago e um café num castelinho.`,
+    dica: `Vá no fim da tarde para o pôr do sol. Entrada ~R$ 10 + estacionamento (9h às 17h); acesso só de carro. Leve casaco: faz frio e venta forte no alto.`,
+  },
+  mao_gigante: {
+    foto: null,
+    resumo: `A escultura "Mão de Deus" é o cenário-símbolo do Prana Pôr do Sol, um café-mirante no caminho do Pico do Itapeva. Tem também balanços "infinitos" e uma escada com "janela para o céu", tudo voltado para a vista da Mantiqueira.`,
+    dica: `Vá no fim da tarde para o pôr do sol (o ponto alto). Entrada ~R$ 50 (estacionamento à parte), parte revertida em consumação. Chegue cedo: enche e forma fila nas fotos.`,
+  },
+  horto: {
+    foto: hortoFoto,
+    resumo: `O Parque Estadual de Campos do Jordão (~8.300 ha), primeiro parque estadual de SP (1941), coberto por araucárias. Cinco trilhas de vários níveis, lago com pedalinho, arborismo, tirolesa, bikes, áreas de piquenique e cafés.`,
+    dica: `Reserve quase um dia. Abre 8h30 às 17h e fecha às quartas — vá de manhã para as trilhas com clima ameno e menos fila nas aventuras.`,
+  },
+  turundu: {
+    foto: null,
+    resumo: `O Tarundu é um parque de aventura e lazer (~500 mil m² de mata a 1.700 m), com 25+ atrações: tirolesa, arvorismo, boia-cross, patinação no gelo, arco e flecha, cavalgada, trilhas e restaurante. Muita diversão em contato com a natureza.`,
+    dica: `Abre todo dia das 9h às 17h. Chegue cedo para as principais atrações sem fila. É pet-friendly; ingressos no site tarundu.com.br.`,
+  },
+  lagoinha: {
+    foto: null,
+    resumo: `Parque da Lagoinha: área verde pública (~48 mil m²) voltada à preservação, com trilhas fáceis (boas para todas as idades), lagos, patos soltos e um viveiro de ovelhas. Abriga o projeto Mãostiqueiras, de artesanato em lã da região.`,
+    dica: `Entrada gratuita (paga-se só o estacionamento, ~R$ 20). Quarta a segunda, 9h às 18h. Leve tempo para a trilha e ração para os patos e ovelhas.`,
+  },
+}
 
 /* --------------------------------------------------------- status da viagem */
 

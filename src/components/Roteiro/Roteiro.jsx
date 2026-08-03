@@ -5,7 +5,7 @@ import { useUsuario } from '../../hooks/useUsuario'
 import LinksLocal from '../ui/LinksLocal'
 import FormularioDespesa from '../Despesas/FormularioDespesa'
 import { toast } from '../../services/toast'
-import { ROTEIRO } from '../../utils/guia'
+import { LOCAIS, ROTEIRO } from '../../utils/guia'
 import { hojeISO } from '../../utils/formatters'
 
 function ddmm(data) {
@@ -162,51 +162,90 @@ function ClimaDoDia({ clima }) {
 }
 
 function ParadaItem({ parada, numero, feito, aoAlternar, aoLancarDespesa }) {
+  const [aberto, setAberto] = useState(false)
+  const info = parada.info ? LOCAIS[parada.info] : null
+
   return (
-    <li className="flex items-start gap-1.5 rounded-card bg-white p-3.5 shadow-card">
-      <button
-        type="button"
-        onClick={aoAlternar}
-        aria-pressed={feito}
-        aria-label={feito ? 'Desmarcar parada' : 'Marcar como visitada'}
-        className="grid size-11 shrink-0 place-items-center rounded-full transition-colors"
-      >
-        <span
-          className={[
-            'grid size-7 place-items-center rounded-full border-2 text-sm',
-            feito
-              ? 'border-pinheiro-600 bg-pinheiro-600 text-white'
-              : 'border-neve-300 text-transparent',
-          ].join(' ')}
+    <li className="rounded-card bg-white p-3.5 shadow-card">
+      <div className="flex items-start gap-1.5">
+        <button
+          type="button"
+          onClick={aoAlternar}
+          aria-pressed={feito}
+          aria-label={feito ? 'Desmarcar parada' : 'Marcar como visitada'}
+          className="grid size-11 shrink-0 place-items-center rounded-full transition-colors"
         >
-          ✓
-        </span>
-      </button>
-
-      <div className="min-w-0 flex-1 pt-1.5">
-        <p
-          className={[
-            'font-semibold',
-            feito ? 'text-pinheiro-500 line-through' : 'text-pinheiro-800',
-          ].join(' ')}
-        >
-          <span className="text-pinheiro-500">{numero}.</span> {parada.nome}
-        </p>
-        {parada.obs && (
-          <p className="mt-0.5 text-sm text-pinheiro-500">{parada.obs}</p>
-        )}
-
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <LinksLocal local={parada.local} />
-          <button
-            type="button"
-            onClick={aoLancarDespesa}
-            className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-pinheiro-600 transition-colors hover:bg-neve-200"
+          <span
+            className={[
+              'grid size-7 place-items-center rounded-full border-2 text-sm',
+              feito
+                ? 'border-pinheiro-600 bg-pinheiro-600 text-white'
+                : 'border-neve-300 text-transparent',
+            ].join(' ')}
           >
-            ➕ despesa
-          </button>
+            ✓
+          </span>
+        </button>
+
+        <div className="min-w-0 flex-1 pt-1.5">
+          <p
+            className={[
+              'font-semibold',
+              feito ? 'text-pinheiro-500 line-through' : 'text-pinheiro-800',
+            ].join(' ')}
+          >
+            <span className="text-pinheiro-500">{numero}.</span> {parada.nome}
+          </p>
+          {parada.obs && (
+            <p className="mt-0.5 text-sm text-pinheiro-500">{parada.obs}</p>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <LinksLocal local={parada.local} />
+            {info && (
+              <button
+                type="button"
+                onClick={() => setAberto((v) => !v)}
+                aria-expanded={aberto}
+                className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-pinheiro-600 transition-colors hover:bg-neve-200"
+              >
+                ℹ️ sobre {aberto ? '▲' : '▼'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={aoLancarDespesa}
+              className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-pinheiro-600 transition-colors hover:bg-neve-200"
+            >
+              ➕ despesa
+            </button>
+          </div>
         </div>
       </div>
+
+      {aberto && info && (
+        <div className="anim-fade-up mt-3 overflow-hidden rounded-card bg-neve">
+          {info.foto && (
+            <img
+              src={info.foto}
+              alt={parada.nome}
+              className="h-40 w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          )}
+          <div className="space-y-2 p-3.5">
+            <p className="text-sm leading-relaxed text-pinheiro-700">
+              {info.resumo}
+            </p>
+            {info.dica && (
+              <p className="rounded-card bg-outono-50 px-3 py-2 text-sm leading-relaxed text-outono-800">
+                <span className="font-semibold">💡 Dica:</span> {info.dica}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </li>
   )
 }

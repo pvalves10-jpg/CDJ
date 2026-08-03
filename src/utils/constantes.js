@@ -14,6 +14,7 @@ export const USUARIOS = [
 
 /** Itens do menu lateral. */
 export const SECOES = [
+  { para: '/', emoji: '🏠', rotulo: 'Início' },
   { para: '/roteiro', emoji: '🗺️', rotulo: 'Roteiro' },
   { para: '/imperdiveis', emoji: '⭐', rotulo: 'Imperdíveis' },
   { para: '/fotos', emoji: '📸', rotulo: 'Fotos' },

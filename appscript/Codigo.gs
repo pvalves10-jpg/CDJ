@@ -98,6 +98,8 @@ function tratar_(e) {
         return json_({ ok: true });
       case 'gemini':
         return json_({ ok: true, texto: gemini_(req) });
+      case 'chat':
+        return json_({ ok: true, texto: chat_(req) });
       default:
         return json_({ ok: false, erro: 'Ação desconhecida: ' + req.action });
     }
@@ -263,6 +265,73 @@ function gemini_(req) {
 
     ultimo = resp.getContentText();
     // 404 = modelo inexistente para esta chave; tenta o próximo da lista.
+    if (code !== 404) throw new Error('Gemini erro ' + code + ': ' + ultimo);
+  }
+  throw new Error('Nenhum modelo do Gemini respondeu. ' + ultimo);
+}
+
+/* ------------------------------------------------------------------ chat */
+
+var PERSONA_CHAT =
+  'Você é um roteirista de viagem simpático e especialista em Campos do Jordão ' +
+  '(SP, Brasil). Está ajudando um casal, Louise e Paulo Victor, na primeira ' +
+  'viagem deles a Campos do Jordão (04 a 07/08). Responda SEMPRE em português ' +
+  'do Brasil, de forma curta, prática e calorosa. Dê dicas de passeios, ' +
+  'restaurantes, clima, o que levar, rotas, o que fazer se chover, custos ' +
+  'aproximados e ideias românticas. Se não souber algo específico, seja ' +
+  'honesto. Use no máximo uns 4 parágrafos curtos ou uma lista objetiva.';
+
+function chat_(req) {
+  var chave = props_().getProperty('GEMINI_API_KEY');
+  if (!chave) throw new Error('GEMINI_API_KEY não configurada no Apps Script.');
+
+  var mensagens = req.mensagens || [];
+  var contents = [];
+  for (var i = 0; i < mensagens.length; i++) {
+    var m = mensagens[i];
+    var texto = String((m && m.texto) || '').trim();
+    if (!texto) continue;
+    contents.push({
+      role: m.autor === 'ia' ? 'model' : 'user',
+      parts: [{ text: texto }],
+    });
+  }
+  if (!contents.length) throw new Error('Mensagem vazia.');
+
+  var payload = {
+    systemInstruction: { parts: [{ text: PERSONA_CHAT }] },
+    contents: contents,
+    generationConfig: { temperature: 0.7 },
+  };
+
+  var ultimo = '';
+  for (var j = 0; j < MODELOS_GEMINI.length; j++) {
+    var url =
+      'https://generativelanguage.googleapis.com/v1beta/models/' +
+      MODELOS_GEMINI[j] +
+      ':generateContent?key=' +
+      encodeURIComponent(chave);
+    var resp = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    var code = resp.getResponseCode();
+    if (code === 200) {
+      var data = JSON.parse(resp.getContentText());
+      var cand = data.candidates && data.candidates[0];
+      var out = '';
+      if (cand && cand.content && cand.content.parts) {
+        out = cand.content.parts
+          .map(function (p) {
+            return p.text || '';
+          })
+          .join('');
+      }
+      return out;
+    }
+    ultimo = resp.getContentText();
     if (code !== 404) throw new Error('Gemini erro ' + code + ': ' + ultimo);
   }
   throw new Error('Nenhum modelo do Gemini respondeu. ' + ultimo);

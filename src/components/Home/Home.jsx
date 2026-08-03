@@ -4,16 +4,18 @@ import SeletorUsuario from './SeletorUsuario'
 import ResumoSaldo from '../Saldo/ResumoSaldo'
 import Botao from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
+import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
 import { statusViagem } from '../../utils/guia'
-import { configCompleta } from '../../utils/config'
 import inicio from '../../assets/inicio.jpg'
 
 export default function Home() {
   const { saldo } = useDespesas()
+  const { autenticado } = useDrive()
   const [usuario, setUsuario] = useUsuario()
 
-  const faltaConfigurar = !configCompleta()
+  // Reativo: quando URL+token são salvos e a conexão fica OK, o aviso some sozinho.
+  const faltaConfigurar = !autenticado
   const status = statusViagem()
 
   if (!usuario) return <SeletorUsuario aoEscolher={setUsuario} />

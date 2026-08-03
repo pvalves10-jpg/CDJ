@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Drawer from './Drawer'
+import ChatGemini from '../Chat/ChatGemini'
 import { useUsuario } from '../../hooks/useUsuario'
 import { useDespesas } from '../../hooks/useDespesas'
 import { SECOES } from '../../utils/constantes'
@@ -65,6 +66,8 @@ export default function Layout() {
         aoFechar={() => setMenuAberto(false)}
         usuario={usuario}
       />
+
+      <ChatGemini />
     </div>
   )
 }

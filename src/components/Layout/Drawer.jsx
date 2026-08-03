@@ -35,6 +35,7 @@ export default function Drawer({ aberto, aoFechar, usuario }) {
             <li key={secao.para}>
               <NavLink
                 to={secao.para}
+                end={secao.para === '/'}
                 onClick={aoFechar}
                 className={({ isActive }) =>
                   [
