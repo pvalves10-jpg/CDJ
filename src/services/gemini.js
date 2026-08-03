@@ -1,4 +1,5 @@
 import { chamar } from './api'
+import { reduzirImagem } from '../utils/imagem'
 import { CATEGORIAS_PADRAO } from '../utils/constantes'
 
 /**
@@ -32,40 +33,10 @@ function paraBase64(blob) {
 /**
  * Reduz a foto antes de enviar. Uma foto de celular tem ~12MP; em base64 vira
  * um corpo de vários MB, lento e sem ganho de precisão para ler um cupom.
- * Se o navegador não decodificar o formato (HEIC, por exemplo), manda o original.
  */
-async function prepararImagem(file, maxLado = 1600) {
-  const original = async () => ({
-    mimeType: file.type || 'image/jpeg',
-    base64: await paraBase64(file),
-  })
-
-  if (typeof createImageBitmap !== 'function') return original()
-
-  let bitmap
-  try {
-    bitmap = await createImageBitmap(file)
-  } catch {
-    return original()
-  }
-
-  try {
-    const maior = Math.max(bitmap.width, bitmap.height)
-    if (maior <= maxLado && file.size < 1_500_000) return original()
-
-    const escala = Math.min(1, maxLado / maior)
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bitmap.width * escala)
-    canvas.height = Math.round(bitmap.height * escala)
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85))
-    if (!blob) return original()
-
-    return { mimeType: 'image/jpeg', base64: await paraBase64(blob) }
-  } finally {
-    bitmap.close?.()
-  }
+async function prepararImagem(file) {
+  const blob = await reduzirImagem(file, 1600, 0.85)
+  return { mimeType: blob.type || 'image/jpeg', base64: await paraBase64(blob) }
 }
 
 /* ---------------------------------------------------------------- resposta */

@@ -1,3 +1,5 @@
+import { hojeISO } from './formatters'
+
 /**
  * Conteúdo do Guia Premium da viagem (Louise & Paulo Victor — Campos do Jordão,
  * 04 a 07/08). É dado FIXO da viagem, por isso mora aqui no código.
@@ -118,3 +120,43 @@ export const EXPERIENCIAS = [
   { id: 'capivari', nome: 'Capivari à noite', emoji: '🌃' },
   { id: 'itapeva', nome: 'Pico do Itapeva', emoji: '⛰️' },
 ]
+
+/* --------------------------------------------------------- status da viagem */
+
+function diasEntre(aISO, bISO) {
+  const [ay, am, ad] = aISO.split('-').map(Number)
+  const [by, bm, bd] = bISO.split('-').map(Number)
+  return Math.round(
+    (Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000,
+  )
+}
+
+/** Primeiro e último dia do roteiro (YYYY-MM-DD). */
+export const INICIO_VIAGEM = ROTEIRO[0].data
+export const FIM_VIAGEM = ROTEIRO[ROTEIRO.length - 1].data
+
+/**
+ * Contexto da viagem para hoje: antes (contagem regressiva), durante
+ * (Dia X de N) ou depois. Puro cálculo local — funciona offline.
+ */
+export function statusViagem(hoje = hojeISO()) {
+  if (hoje < INICIO_VIAGEM) {
+    const dias = diasEntre(hoje, INICIO_VIAGEM)
+    return {
+      fase: 'antes',
+      texto:
+        dias === 1
+          ? 'Falta 1 dia para Campos! 🏔️'
+          : `Faltam ${dias} dias para Campos! 🏔️`,
+    }
+  }
+  if (hoje > FIM_VIAGEM) {
+    return { fase: 'depois', texto: 'Que viagem inesquecível! 💚' }
+  }
+  const i = ROTEIRO.findIndex((d) => d.data === hoje)
+  const n = i >= 0 ? i + 1 : 1
+  return {
+    fase: 'durante',
+    texto: `Dia ${n} de ${ROTEIRO.length} · Campos do Jordão`,
+  }
+}

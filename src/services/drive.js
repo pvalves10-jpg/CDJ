@@ -1,4 +1,5 @@
 import { chamar, enviarArquivo } from './api'
+import { reduzirImagem } from '../utils/imagem'
 
 /**
  * Camada de Drive — agora sobre o backend em Apps Script.
@@ -75,6 +76,42 @@ export function normalizar(bruto) {
   return envelopeVazio()
 }
 
+function mesclarPorId(a = [], b = []) {
+  const mapa = new Map()
+  for (const x of [...a, ...b]) if (x?.id) mapa.set(x.id, x)
+  return [...mapa.values()]
+}
+
+/**
+ * Une o envelope remoto com o local, por id — para a sincronização pós-offline
+ * não apagar o que o OUTRO aparelho gravou enquanto este estava sem sinal.
+ * Local vence em ids iguais.
+ *
+ * Atenção: é uma união. Exclusões feitas offline podem reaparecer — aceitável
+ * para o uso aditivo de duas pessoas nesta viagem.
+ */
+export function mesclarEnvelopes(remoto, local) {
+  const r = normalizar(remoto)
+  const l = normalizar(local)
+
+  const fotos_spots = { ...r.guia.fotos_spots }
+  for (const [spot, ids] of Object.entries(l.guia.fotos_spots)) {
+    fotos_spots[spot] = [...new Set([...(fotos_spots[spot] ?? []), ...ids])]
+  }
+
+  return {
+    versao: Math.max(r.versao ?? 1, l.versao ?? 1),
+    despesas: mesclarPorId(r.despesas, l.despesas),
+    categorias_custom: mesclarPorId(r.categorias_custom, l.categorias_custom),
+    acertos: mesclarPorId(r.acertos, l.acertos),
+    guia: {
+      fotos_spots,
+      experiencias: { ...r.guia.experiencias, ...l.guia.experiencias },
+      roteiro: { ...r.guia.roteiro, ...l.guia.roteiro },
+    },
+  }
+}
+
 /** Lê `DESPESAS/despesas.json`. Se ainda não existe, devolve o envelope vazio. */
 export async function lerDespesas() {
   const { dados } = await chamar('ler')
@@ -90,26 +127,41 @@ export async function salvarDespesas(dados) {
 
 /* ----------------------------------------------------------------- uploads */
 
-function fileParaBase64(file) {
+function blobParaBase64(blob) {
   return new Promise((resolve, reject) => {
     const leitor = new FileReader()
     leitor.onload = () =>
       resolve({
-        mimeType: file.type || 'application/octet-stream',
+        mimeType: blob.type || 'application/octet-stream',
         base64: String(leitor.result).split(',')[1] ?? '',
       })
     leitor.onerror = () =>
-      reject(new ErroDrive(`Não consegui ler o arquivo "${file.name}".`))
-    leitor.readAsDataURL(file)
+      reject(new ErroDrive('Não consegui ler a imagem para enviar.'))
+    leitor.readAsDataURL(blob)
   })
+}
+
+const EXT_POR_MIME = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+}
+
+/** Ajusta a extensão do nome para bater com o tipo real (após recompressão). */
+function comExtensao(nome, mimeType) {
+  const ext = EXT_POR_MIME[mimeType]
+  if (!ext) return nome
+  return nome.replace(/\.[a-z0-9]+$/i, '') + ext
 }
 
 /** Upload genérico com progresso. `alvo` = 'fotos' | 'despesas'. */
 async function upload(file, alvo, { nome, onProgress, signal } = {}) {
-  const { base64, mimeType } = await fileParaBase64(file)
+  // Reduz antes de enviar: fotos ~2000px; comprovantes menores (o Gemini já leu).
+  const otimizado = await reduzirImagem(file, alvo === 'despesas' ? 1600 : 2000)
+  const { base64, mimeType } = await blobParaBase64(otimizado)
   const { arquivo } = await enviarArquivo(
     'upload',
-    { alvo, nome: nome || file.name, mimeType, base64 },
+    { alvo, nome: comExtensao(nome || file.name, mimeType), mimeType, base64 },
     { onProgress, signal },
   )
   onProgress?.(100)

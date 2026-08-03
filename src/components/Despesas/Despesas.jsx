@@ -130,7 +130,9 @@ export default function Despesas() {
             }
           } catch (e) {
             toast.aviso(
-              `Despesa salva, mas o comprovante não subiu: ${e.message}`,
+              e.rede
+                ? 'Despesa salva! Mas sem conexão o comprovante não subiu desta vez.'
+                : `Despesa salva, mas o comprovante não subiu: ${e.message}`,
             )
           }
         }

@@ -63,8 +63,14 @@ self.addEventListener('fetch', (evento) => {
     return
   }
 
-  // Assets do build têm hash no nome, então cache-first é seguro.
-  if (/\/assets\/|\/icons\/|\.(?:css|js|png|svg|woff2?)$/.test(url.pathname)) {
+  // Assets do build têm hash no nome, então cache-first é seguro. As fotos da
+  // Home saem em /assets/*.jpg (já cobertas por /assets/), mas listamos as
+  // extensões de imagem de propósito para deixar explícito.
+  if (
+    /\/assets\/|\/icons\/|\.(?:css|js|png|jpe?g|webp|svg|woff2?)$/.test(
+      url.pathname,
+    )
+  ) {
     evento.respondWith(
       caches.match(request).then((emCache) => {
         if (emCache) return emCache

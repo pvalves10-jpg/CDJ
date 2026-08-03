@@ -6,7 +6,7 @@ import Modal from '../ui/Modal'
 import { useDespesas } from '../../hooks/useDespesas'
 import { toast } from '../../services/toast'
 import { formatarMoeda, formatarData } from '../../utils/formatters'
-import { nomeUsuario, USUARIOS } from '../../utils/constantes'
+import { acharCategoria, nomeUsuario, USUARIOS } from '../../utils/constantes'
 import { textoDoSaldo } from '../../utils/saldo'
 
 export default function Saldo() {
@@ -14,6 +14,7 @@ export default function Saldo() {
     saldo,
     acertos,
     despesas,
+    categorias,
     salvando,
     registrarAcerto,
     removerAcerto,
@@ -107,6 +108,41 @@ export default function Saldo() {
         </dl>
       </Cartao>
 
+      {Object.keys(saldo.porCategoria).length > 0 && (
+        <Cartao titulo="Gastos por categoria">
+          <ul className="space-y-3">
+            {Object.entries(saldo.porCategoria)
+              .sort(([, a], [, b]) => b - a)
+              .map(([id, valor]) => {
+                const cat = acharCategoria(id, categorias)
+                const proporcao =
+                  saldo.total > 0 ? (valor / saldo.total) * 100 : 0
+                return (
+                  <li key={id}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-semibold text-pinheiro-800">
+                        <span aria-hidden="true" className="mr-1.5">
+                          {cat.emoji}
+                        </span>
+                        {cat.label}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums text-pinheiro-700">
+                        {formatarMoeda(valor)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-neve-200">
+                      <div
+                        className="h-full rounded-full bg-outono-500 transition-[width] duration-500"
+                        style={{ width: `${proporcao}%` }}
+                      />
+                    </div>
+                  </li>
+                )
+              })}
+          </ul>
+        </Cartao>
+      )}
+
       <div className="space-y-2.5">
         <Botao largura variante="accent" onClick={compartilhar}>
           <span aria-hidden="true">📤</span> Compartilhar saldo
@@ -150,7 +186,7 @@ export default function Saldo() {
                   type="button"
                   onClick={() => removerAcerto(acerto.id)}
                   aria-label={`Excluir acerto de ${formatarMoeda(acerto.valor)}`}
-                  className="-mr-1 shrink-0 rounded-full px-2 py-1 text-pinheiro-300 hover:bg-neve-200 hover:text-red-600"
+                  className="-mr-1 grid size-11 shrink-0 place-items-center rounded-full text-lg text-pinheiro-300 transition-colors hover:bg-neve-200 hover:text-red-600"
                 >
                   ×
                 </button>

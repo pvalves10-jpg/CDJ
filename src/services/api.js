@@ -7,10 +7,16 @@ import { getConfig } from '../utils/config'
  * conta do dono da pasta e é protegido por um token compartilhado — então o
  * navegador nunca vê chave nenhuma, só a URL do Web App e o token.
  *
- * Detalhe importante de CORS: enviamos o corpo como `text/plain`. Isso mantém a
- * requisição "simples" (sem preflight OPTIONS, que o Apps Script não responde) e
- * mesmo assim entregamos JSON — o `doPost` lê `e.postData.contents` e faz parse.
+ * Detalhe de CORS: enviamos o corpo como `text/plain`. Isso mantém a requisição
+ * "simples" (sem preflight OPTIONS, que o Apps Script não responde) e mesmo
+ * assim entregamos JSON — o `doPost` lê `e.postData.contents` e faz parse.
+ *
+ * Rede da serra é ruim: leituras têm timeout + retry com backoff, e erros de
+ * rede são marcados com `.rede = true` para a fila offline do useDespesas.
  */
+
+const TIMEOUT_MS = 15000
+const LEITURAS = new Set(['ler', 'listarFotos', 'ping', 'imagem'])
 
 export class ErroApi extends Error {
   constructor(mensagem, { status } = {}) {
@@ -18,6 +24,22 @@ export class ErroApi extends Error {
     this.name = 'ErroApi'
     this.status = status
   }
+}
+
+function erroDeRede(mensagem) {
+  const e = new ErroApi(mensagem)
+  e.rede = true
+  return e
+}
+
+const espera = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/** Combina o signal do chamador com um timeout, quando o browser suporta. */
+function sinalComTimeout(signal) {
+  if (typeof AbortSignal === 'undefined' || !AbortSignal.timeout) return signal
+  const t = AbortSignal.timeout(TIMEOUT_MS)
+  if (signal && AbortSignal.any) return AbortSignal.any([signal, t])
+  return signal ?? t
 }
 
 function base() {
@@ -46,34 +68,59 @@ function interpretar(bruto) {
   return dados
 }
 
-/** Chamada JSON simples (fetch). Devolve o objeto já validado. */
+/** Chamada JSON. Leituras repetem em falha de rede/timeout/5xx. */
 export async function chamar(action, payload = {}, { signal } = {}) {
   const { url, token } = base()
+  const corpo = JSON.stringify({ token, action, ...payload })
+  const tentativas = LEITURAS.has(action) ? 3 : 1
 
-  let resposta
-  try {
-    resposta = await fetch(url, {
-      method: 'POST',
-      // text/plain evita o preflight de CORS; o corpo continua sendo JSON.
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ token, action, ...payload }),
-      signal,
-      redirect: 'follow',
-    })
-  } catch (erro) {
-    if (erro.name === 'AbortError') throw erro
-    throw new ErroApi(
-      'Não consegui falar com o Apps Script. Verifique a internet e a URL configurada.',
-    )
-  }
+  let ultimo
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const resposta = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: corpo,
+        signal: sinalComTimeout(signal),
+        redirect: 'follow',
+      })
+      const texto = await resposta.text()
+      if (!resposta.ok) {
+        throw new ErroApi(
+          `O Apps Script respondeu com erro ${resposta.status}.`,
+          { status: resposta.status },
+        )
+      }
+      return interpretar(texto)
+    } catch (erro) {
+      // Cancelamento explícito do chamador: propaga sem retry.
+      if (signal?.aborted) throw erro
 
-  const texto = await resposta.text()
-  if (!resposta.ok) {
-    throw new ErroApi(`O Apps Script respondeu com erro ${resposta.status}.`, {
-      status: resposta.status,
-    })
+      let repetivel = false
+      if (erro.name === 'AbortError') {
+        ultimo = erroDeRede(
+          'O Apps Script demorou demais para responder (timeout).',
+        )
+        repetivel = true
+      } else if (!(erro instanceof ErroApi)) {
+        // TypeError de fetch = falha de rede.
+        ultimo = erroDeRede(
+          'Não consegui falar com o Apps Script. Verifique a internet e a URL configurada.',
+        )
+        repetivel = true
+      } else {
+        ultimo = erro
+        repetivel = erro.status >= 500
+      }
+
+      if (repetivel && i < tentativas - 1) {
+        await espera(400 * 2 ** i)
+        continue
+      }
+      throw ultimo
+    }
   }
-  return interpretar(texto)
+  throw ultimo
 }
 
 /**
@@ -88,6 +135,7 @@ export function enviarArquivo(action, payload, { onProgress, signal } = {}) {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', url)
     xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8')
+    xhr.timeout = 60000
 
     xhr.upload.onprogress = (evento) => {
       if (onProgress && evento.lengthComputable) {
@@ -110,8 +158,10 @@ export function enviarArquivo(action, payload, { onProgress, signal } = {}) {
       }
     }
 
+    xhr.ontimeout = () =>
+      reject(erroDeRede('O envio demorou demais (timeout). Tente de novo.'))
     xhr.onerror = () =>
-      reject(new ErroApi('Falha de rede ao enviar o arquivo ao Apps Script.'))
+      reject(erroDeRede('Falha de rede ao enviar o arquivo ao Apps Script.'))
     xhr.onabort = () => reject(new ErroApi('Envio cancelado.'))
 
     signal?.addEventListener('abort', () => xhr.abort(), { once: true })

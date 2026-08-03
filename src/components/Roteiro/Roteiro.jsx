@@ -1,33 +1,46 @@
 import { useState } from 'react'
 import { useDespesas } from '../../hooks/useDespesas'
 import { useClima } from '../../hooks/useClima'
+import { useUsuario } from '../../hooks/useUsuario'
 import LinksLocal from '../ui/LinksLocal'
+import FormularioDespesa from '../Despesas/FormularioDespesa'
+import { toast } from '../../services/toast'
 import { ROTEIRO } from '../../utils/guia'
+import { hojeISO } from '../../utils/formatters'
 
 function ddmm(data) {
   const [, m, d] = data.split('-')
   return `${d}/${m}`
 }
 
-function hojeISO() {
-  const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const dia = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${dia}`
-}
-
 export default function Roteiro() {
-  const { guia, marcarParada } = useDespesas()
+  const { guia, marcarParada, adicionar, adicionarCategoria, categorias, salvando } =
+    useDespesas()
   const { previsao } = useClima()
+  const [usuario] = useUsuario()
+
+  const hoje = hojeISO()
 
   // Abre no dia de hoje, se a viagem estiver rolando; senão, no primeiro dia.
   const [indice, setIndice] = useState(() => {
-    const i = ROTEIRO.findIndex((d) => d.data === hojeISO())
+    const i = ROTEIRO.findIndex((d) => d.data === hoje)
     return i >= 0 ? i : 0
   })
+  // Pré-preenchimento do formulário de despesa (local + data da parada).
+  const [nova, setNova] = useState(null)
 
   const dia = ROTEIRO[indice]
   const feitas = dia.paradas.filter((p) => guia.roteiro?.[p.id]).length
+
+  async function salvarDespesa(dados) {
+    try {
+      await adicionar(dados)
+      toast.ok(`${dados.local} — despesa salva.`)
+      setNova(null)
+    } catch {
+      /* o hook já avisou por toast */
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-24">
@@ -35,6 +48,7 @@ export default function Roteiro() {
       <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
         {ROTEIRO.map((d, i) => {
           const ativo = i === indice
+          const ehHoje = d.data === hoje
           return (
             <button
               key={d.id}
@@ -48,9 +62,16 @@ export default function Roteiro() {
                   : 'border-neve-300 bg-white text-pinheiro-600',
               ].join(' ')}
             >
-              <span className="text-sm font-bold">{d.rotulo}</span>
+              <span className="flex items-center gap-1 text-sm font-bold">
+                {d.rotulo}
+                {ehHoje && (
+                  <span className="rounded-full bg-outono-500 px-1.5 py-0.5 text-[10px] leading-none font-bold text-white">
+                    hoje
+                  </span>
+                )}
+              </span>
               <span
-                className={`text-xs ${ativo ? 'text-pinheiro-100' : 'text-pinheiro-400'}`}
+                className={`text-xs ${ativo ? 'text-pinheiro-100' : 'text-pinheiro-600'}`}
               >
                 {ddmm(d.data)}
               </span>
@@ -89,15 +110,35 @@ export default function Roteiro() {
             numero={i + 1}
             feito={Boolean(guia.roteiro?.[parada.id])}
             aoAlternar={() => marcarParada(parada.id, !guia.roteiro?.[parada.id])}
+            aoLancarDespesa={() =>
+              setNova({ local: parada.nome, data: dia.data })
+            }
           />
         ))}
       </ol>
+
+      <FormularioDespesa
+        aberto={Boolean(nova)}
+        aoFechar={() => setNova(null)}
+        aoSalvar={salvarDespesa}
+        despesa={nova}
+        categorias={categorias}
+        usuarioAtual={usuario}
+        aoCriarCategoria={adicionarCategoria}
+        salvando={salvando}
+      />
     </div>
   )
 }
 
 function ClimaDoDia({ clima }) {
-  if (!clima) return null
+  if (!clima) {
+    return (
+      <p className="mt-3 rounded-card bg-white/10 px-3.5 py-2 text-sm text-pinheiro-100">
+        Previsão indisponível offline.
+      </p>
+    )
+  }
   return (
     <div className="mt-3 flex items-center gap-3 rounded-card bg-white/15 px-3.5 py-2.5">
       <span aria-hidden="true" className="text-2xl">
@@ -120,7 +161,7 @@ function ClimaDoDia({ clima }) {
   )
 }
 
-function ParadaItem({ parada, numero, feito, aoAlternar }) {
+function ParadaItem({ parada, numero, feito, aoAlternar, aoLancarDespesa }) {
   return (
     <li className="flex items-start gap-1.5 rounded-card bg-white p-3.5 shadow-card">
       <button
@@ -155,7 +196,16 @@ function ParadaItem({ parada, numero, feito, aoAlternar }) {
           <p className="mt-0.5 text-sm text-pinheiro-500">{parada.obs}</p>
         )}
 
-        <LinksLocal local={parada.local} className="mt-2" />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <LinksLocal local={parada.local} />
+          <button
+            type="button"
+            onClick={aoLancarDespesa}
+            className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 py-2 text-xs font-semibold text-pinheiro-600 transition-colors hover:bg-neve-200"
+          >
+            ➕ despesa
+          </button>
+        </div>
       </div>
     </li>
   )

@@ -11,6 +11,7 @@ import { v4 as uuid } from 'uuid'
 import {
   envelopeVazio,
   lerDespesas,
+  mesclarEnvelopes,
   normalizar,
   salvarDespesas,
 } from '../services/drive'
@@ -20,13 +21,12 @@ import { CATEGORIAS_PADRAO } from '../utils/constantes'
 import { calcularSaldo } from '../utils/saldo'
 
 const CACHE_KEY = 'cdj:cache-despesas'
+const PENDENTE_KEY = 'cdj:pendente'
 const Contexto = createContext(null)
 
 function lerCache() {
   try {
     const bruto = JSON.parse(localStorage.getItem(CACHE_KEY))
-    // Passa pela mesma normalização do Drive: garante o formato canônico
-    // (inclusive as três subchaves de `guia`) mesmo em cache de versão antiga.
     if (bruto && typeof bruto === 'object') return normalizar(bruto)
   } catch {
     /* cache inválido */
@@ -64,19 +64,41 @@ function guiaSeguro(env) {
 export function DespesasProvider({ children }) {
   const [envelope, setEnvelope] = useState(() => lerCache() ?? envelopeVazio())
   const [carregando, setCarregando] = useState(false)
-  const [salvando, setSalvando] = useState(false)
+  /** Contador de gravações em voo — `salvando` é derivado. */
+  const [emVoo, setEmVoo] = useState(0)
+  const salvando = emVoo > 0
   /** false enquanto os dados vierem só do cache local. */
   const [sincronizado, setSincronizado] = useState(false)
+  /** true quando há edições feitas offline aguardando envio ao Drive. */
+  const [pendente, setPendente] = useState(() => {
+    try {
+      return localStorage.getItem(PENDENTE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
-  // envelopeRef guarda SEMPRE o estado mais recente (inclusive otimista, ainda
-  // não confirmado no Drive). É atualizado no render e, sincronamente, em cada
-  // mutação — para que gravações encadeadas partam do estado certo.
+  // envelopeRef guarda SEMPRE o estado mais recente (inclusive otimista).
   const envelopeRef = useRef(envelope)
   envelopeRef.current = envelope
+  const pendenteRef = useRef(pendente)
+  pendenteRef.current = pendente
 
-  // Fila de gravações no Drive: serializa os saves para o último estado gravado
-  // ser sempre o mais novo (evita PUTs fora de ordem sobrescrevendo dados).
+  // Fila única que serializa TODAS as gravações no Drive (persistir + sync).
   const filaRef = useRef(Promise.resolve())
+
+  const iniciarSave = useCallback(() => setEmVoo((n) => n + 1), [])
+  const fimSave = useCallback(() => setEmVoo((n) => Math.max(0, n - 1)), [])
+
+  const marcarPendente = useCallback((v) => {
+    setPendente(v)
+    try {
+      if (v) localStorage.setItem(PENDENTE_KEY, '1')
+      else localStorage.removeItem(PENDENTE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const recarregar = useCallback(async ({ silencioso = false } = {}) => {
     if (!estaAutenticado()) {
@@ -86,64 +108,132 @@ export function DespesasProvider({ children }) {
     if (!silencioso) setCarregando(true)
     try {
       const remoto = await lerDespesas()
-      setEnvelope(remoto)
-      envelopeRef.current = remoto
-      gravarCache(remoto)
+      // MERGE (local vence) em vez de sobrescrever: uma resposta lenta do Drive
+      // nunca descarta uma edição otimista que o usuário acabou de fazer. É união
+      // por id — como o outro aparelho é aditivo, traz o que ele adicionou sem
+      // apagar o local. (Exclusões remotas não propagam — trade-off aceito.)
+      const mesclado = mesclarEnvelopes(remoto, envelopeRef.current)
+      setEnvelope(mesclado)
+      envelopeRef.current = mesclado
+      gravarCache(mesclado)
       setSincronizado(true)
-      return remoto
+      return mesclado
     } catch (e) {
-      toast.erro(`Não consegui carregar as despesas: ${e.message}`)
+      // Offline no carregamento: fica em silêncio e usa o cache local.
+      if (!e.rede) toast.erro(`Não consegui carregar as despesas: ${e.message}`)
       setSincronizado(false)
       return null
     } finally {
-      setCarregando(false)
+      if (!silencioso) setCarregando(false)
     }
   }, [])
 
-  useEffect(() => {
-    recarregar()
-    return assinarAuth((autenticado) => {
-      if (autenticado) recarregar({ silencioso: true })
-      else setSincronizado(false)
+  /**
+   * Reenvia as edições feitas offline. Passa pela MESMA fila dos saves (nunca
+   * concorre com persistir) e faz read-modify-write com MERGE por id, para não
+   * apagar o que o outro aparelho gravou nesse meio-tempo.
+   */
+  const sincronizarPendente = useCallback(() => {
+    if (!estaAutenticado() || !pendenteRef.current) return Promise.resolve()
+
+    const tarefa = filaRef.current.then(async () => {
+      if (!pendenteRef.current) return // já sincronizado por outra tarefa
+      iniciarSave()
+      try {
+        const remoto = await lerDespesas()
+        const mesclado = mesclarEnvelopes(remoto, envelopeRef.current)
+        await salvarDespesas(mesclado)
+        setEnvelope(mesclado)
+        envelopeRef.current = mesclado
+        gravarCache(mesclado)
+        marcarPendente(false)
+        setSincronizado(true)
+        toast.ok('Alterações offline sincronizadas.')
+      } catch {
+        /* segue pendente; tentamos de novo no próximo 'online' */
+      } finally {
+        fimSave()
+      }
     })
-  }, [recarregar])
+    filaRef.current = tarefa.catch(() => {})
+    return tarefa
+  }, [marcarPendente, iniciarSave, fimSave])
+
+  useEffect(() => {
+    // Se havia edições offline, empurra o local; senão, puxa o remoto.
+    if (pendenteRef.current) sincronizarPendente()
+    else recarregar()
+
+    const aoVoltar = () => {
+      if (pendenteRef.current) sincronizarPendente()
+      else recarregar({ silencioso: true })
+    }
+    window.addEventListener('online', aoVoltar)
+
+    const desassinar = assinarAuth((autenticado) => {
+      if (!autenticado) {
+        setSincronizado(false)
+        return
+      }
+      if (pendenteRef.current) sincronizarPendente()
+      else recarregar({ silencioso: true })
+    })
+
+    return () => {
+      window.removeEventListener('online', aoVoltar)
+      desassinar()
+    }
+  }, [recarregar, sincronizarPendente])
 
   /**
    * Aplica a mudança na UI na hora e grava no Drive em seguida.
    *
-   * `transformar(atual) => proximo` recebe SEMPRE o estado mais recente, então
-   * mutações concorrentes não se sobrescrevem. As gravações no Drive rodam em
-   * fila (serializadas). Se a gravação falhar, desfaz — a menos que uma mutação
-   * mais nova já tenha entrado por cima (aí só avisa o erro).
+   * `transformar(atual) => proximo` recebe SEMPRE o estado mais recente. As
+   * gravações rodam em fila e cada uma envia o estado mais novo disponível na
+   * hora (`alvo`), então se compõem corretamente com o merge do sync. Se falhar
+   * por REDE, mantém a edição e marca pendente; por outro motivo, desfaz.
    */
-  const persistir = useCallback((transformar) => {
-    const anterior = envelopeRef.current
-    const proximo = transformar(anterior)
-    setEnvelope(proximo)
-    envelopeRef.current = proximo
-    gravarCache(proximo)
+  const persistir = useCallback(
+    (transformar) => {
+      const anterior = envelopeRef.current
+      const proximo = transformar(anterior)
+      setEnvelope(proximo)
+      envelopeRef.current = proximo
+      gravarCache(proximo)
 
-    const tarefa = filaRef.current.then(async () => {
-      setSalvando(true)
-      try {
-        await salvarDespesas(proximo)
-        setSincronizado(true)
-      } catch (e) {
-        if (envelopeRef.current === proximo) {
-          setEnvelope(anterior)
-          envelopeRef.current = anterior
-          gravarCache(anterior)
+      const tarefa = filaRef.current.then(async () => {
+        iniciarSave()
+        const alvo = envelopeRef.current
+        try {
+          // Caminho online: grava o estado inteiro (last-writer-wins). Edições
+          // simultâneas dos dois aparelhos são reconciliadas no próximo pull
+          // (recarregar faz merge) e no sync pós-offline.
+          await salvarDespesas(alvo)
+          setSincronizado(true)
+          marcarPendente(false)
+        } catch (e) {
+          if (e.rede) {
+            // Offline é "sucesso local": mantém a edição e reenvia depois.
+            marcarPendente(true)
+            setSincronizado(false)
+            return
+          }
+          if (envelopeRef.current === alvo) {
+            setEnvelope(anterior)
+            envelopeRef.current = anterior
+            gravarCache(anterior)
+          }
+          toast.erro(`Não salvou no Drive: ${e.message}`)
+          throw e
+        } finally {
+          fimSave()
         }
-        toast.erro(`Não salvou no Drive: ${e.message}`)
-        throw e
-      } finally {
-        setSalvando(false)
-      }
-    })
-    // .catch mantém a fila viva mesmo quando uma gravação falha.
-    filaRef.current = tarefa.catch(() => {})
-    return tarefa
-  }, [])
+      })
+      filaRef.current = tarefa.catch(() => {})
+      return tarefa
+    },
+    [marcarPendente, iniciarSave, fimSave],
+  )
 
   const adicionar = useCallback(
     (dados) => {
@@ -312,6 +402,7 @@ export function DespesasProvider({ children }) {
       carregando,
       salvando,
       sincronizado,
+      pendente,
       recarregar,
       adicionar,
       atualizar,
@@ -329,6 +420,7 @@ export function DespesasProvider({ children }) {
     carregando,
     salvando,
     sincronizado,
+    pendente,
     recarregar,
     adicionar,
     atualizar,

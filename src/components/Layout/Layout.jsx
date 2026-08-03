@@ -13,7 +13,7 @@ export default function Layout() {
   const [menuAberto, setMenuAberto] = useState(false)
   const { pathname } = useLocation()
   const [usuario] = useUsuario()
-  const { salvando } = useDespesas()
+  const { salvando, pendente } = useDespesas()
 
   const naHome = pathname === '/'
 
@@ -46,6 +46,15 @@ export default function Layout() {
           </span>
         )}
       </header>
+
+      {pendente && (
+        <div
+          role="status"
+          className="bg-outono-100 px-4 py-1.5 text-center text-xs font-semibold text-outono-800"
+        >
+          🔌 Offline — suas alterações serão enviadas quando a conexão voltar.
+        </div>
+      )}
 
       <main className="flex flex-1 flex-col">
         <Outlet />

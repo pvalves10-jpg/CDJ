@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
 import Avatar from './Avatar'
 import HeroFotos from './HeroFotos'
+import Hoje from './Hoje'
 import SeletorUsuario from './SeletorUsuario'
 import ResumoSaldo from '../Saldo/ResumoSaldo'
 import Botao from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
 import { useUsuario } from '../../hooks/useUsuario'
 import { USUARIOS } from '../../utils/constantes'
+import { statusViagem } from '../../utils/guia'
 import { configCompleta } from '../../utils/config'
 
 export default function Home() {
@@ -14,11 +16,18 @@ export default function Home() {
   const [usuario, setUsuario] = useUsuario()
 
   const faltaConfigurar = !configCompleta()
+  const status = statusViagem()
 
   if (!usuario) return <SeletorUsuario aoEscolher={setUsuario} />
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-10">
+      <div className="anim-fade-up rounded-card bg-pinheiro-700 px-4 py-2 text-center text-sm font-bold text-white">
+        {status.texto}
+      </div>
+
+      <Hoje />
+
       <div className="anim-fade-up">
         <HeroFotos />
       </div>

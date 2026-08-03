@@ -19,6 +19,7 @@ function arredondar(valor) {
  */
 export function calcularSaldo(despesas = [], acertos = []) {
   const pago = Object.fromEntries(USUARIOS.map((u) => [u.id, 0]))
+  const porCategoria = {}
 
   let total = 0
   for (const despesa of despesas) {
@@ -26,6 +27,8 @@ export function calcularSaldo(despesas = [], acertos = []) {
     if (valor <= 0) continue
     total += valor
     if (despesa.pagador in pago) pago[despesa.pagador] += valor
+    const cat = despesa.categoria || 'outro'
+    porCategoria[cat] = (porCategoria[cat] || 0) + valor
   }
 
   const cota = total / 2
@@ -62,6 +65,9 @@ export function calcularSaldo(despesas = [], acertos = []) {
     ),
     saldo: Object.fromEntries(
       Object.entries(saldo).map(([id, v]) => [id, arredondar(v)]),
+    ),
+    porCategoria: Object.fromEntries(
+      Object.entries(porCategoria).map(([id, v]) => [id, arredondar(v)]),
     ),
     quites,
     devedor,
