@@ -157,9 +157,12 @@ function comExtensao(nome, mimeType) {
 
 /** Upload genérico com progresso. `alvo` = 'fotos' | 'despesas'. */
 async function upload(file, alvo, { nome, onProgress, signal } = {}) {
+  onProgress?.(10)
   // Reduz antes de enviar: fotos ~2000px; comprovantes menores (o Gemini já leu).
   const otimizado = await reduzirImagem(file, alvo === 'despesas' ? 1600 : 2000)
   const { base64, mimeType } = await blobParaBase64(otimizado)
+  // Sem % fina de envio (fetch não expõe) — passos aproximados p/ a barra andar.
+  onProgress?.(45)
   const { arquivo } = await enviarArquivo(
     'upload',
     { alvo, nome: comExtensao(nome || file.name, mimeType), mimeType, base64 },

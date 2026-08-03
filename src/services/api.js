@@ -35,9 +35,9 @@ function erroDeRede(mensagem) {
 const espera = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /** Combina o signal do chamador com um timeout, quando o browser suporta. */
-function sinalComTimeout(signal) {
+function sinalComTimeout(signal, ms = TIMEOUT_MS) {
   if (typeof AbortSignal === 'undefined' || !AbortSignal.timeout) return signal
-  const t = AbortSignal.timeout(TIMEOUT_MS)
+  const t = AbortSignal.timeout(ms)
   if (signal && AbortSignal.any) return AbortSignal.any([signal, t])
   return signal ?? t
 }
@@ -124,48 +124,43 @@ export async function chamar(action, payload = {}, { signal } = {}) {
 }
 
 /**
- * Upload com progresso. Usa XMLHttpRequest porque `fetch` não expõe progresso
- * de envio — importante para as barras da tela de Fotos.
+ * Upload de arquivo. Usa `fetch` (não XMLHttpRequest) de propósito:
+ *
+ * Anexar qualquer listener em `xhr.upload` (para progresso de envio) torna a
+ * requisição "não-simples" no CORS e dispara um preflight OPTIONS — que o Web
+ * App do Apps Script NÃO responde. O resultado é um falso "sem conexão" no
+ * upload, mesmo com a internet ok. Com `fetch` (sem upload listeners e com o
+ * mesmo `text/plain`) a requisição continua simples e segue o redirect do
+ * Apps Script, como o resto das chamadas. Trade-off: sem % de progresso fino
+ * do envio (o chamador mostra passos/spinner).
  */
-export function enviarArquivo(action, payload, { onProgress, signal } = {}) {
+export async function enviarArquivo(action, payload, { onProgress, signal } = {}) {
   const { url, token } = base()
   const corpo = JSON.stringify({ token, action, ...payload })
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', url)
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8')
-    xhr.timeout = 60000
+  let resposta
+  try {
+    resposta = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: corpo,
+      signal: sinalComTimeout(signal, 60000),
+      redirect: 'follow',
+    })
+  } catch {
+    if (signal?.aborted) throw new ErroApi('Envio cancelado.')
+    throw erroDeRede(
+      'Falha ao enviar o arquivo (rede lenta ou instável). Tente de novo.',
+    )
+  }
 
-    xhr.upload.onprogress = (evento) => {
-      if (onProgress && evento.lengthComputable) {
-        onProgress(Math.round((evento.loaded / evento.total) * 100))
-      }
-    }
-
-    xhr.onload = () => {
-      if (xhr.status < 200 || xhr.status >= 300) {
-        return reject(
-          new ErroApi(`O Apps Script respondeu com erro ${xhr.status}.`, {
-            status: xhr.status,
-          }),
-        )
-      }
-      try {
-        resolve(interpretar(xhr.responseText))
-      } catch (erro) {
-        reject(erro)
-      }
-    }
-
-    xhr.ontimeout = () =>
-      reject(erroDeRede('O envio demorou demais (timeout). Tente de novo.'))
-    xhr.onerror = () =>
-      reject(erroDeRede('Falha de rede ao enviar o arquivo ao Apps Script.'))
-    xhr.onabort = () => reject(new ErroApi('Envio cancelado.'))
-
-    signal?.addEventListener('abort', () => xhr.abort(), { once: true })
-
-    xhr.send(corpo)
-  })
+  const texto = await resposta.text()
+  if (!resposta.ok) {
+    throw new ErroApi(`O Apps Script respondeu com erro ${resposta.status}.`, {
+      status: resposta.status,
+    })
+  }
+  const dados = interpretar(texto)
+  onProgress?.(100)
+  return dados
 }
