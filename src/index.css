@@ -1,0 +1,143 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Verde-pinheiro — cor primária */
+  --color-pinheiro-50: #f1f5ec;
+  --color-pinheiro-100: #dfe8d5;
+  --color-pinheiro-200: #c0d2ad;
+  --color-pinheiro-300: #9bb77f;
+  --color-pinheiro-400: #789a57;
+  --color-pinheiro-500: #5a7c3c;
+  --color-pinheiro-600: #44622a;
+  --color-pinheiro-700: #2d5016;
+  --color-pinheiro-800: #243f12;
+  --color-pinheiro-900: #1a2e0d;
+
+  /* Laranja outonal — accent */
+  --color-outono-50: #fef3ea;
+  --color-outono-100: #fbe0c9;
+  --color-outono-200: #f7c193;
+  --color-outono-300: #f2a05c;
+  --color-outono-400: #ed8935;
+  --color-outono-500: #e8731a;
+  --color-outono-600: #c85d0f;
+  --color-outono-700: #9e480c;
+  --color-outono-800: #78360a;
+
+  /* Branco neve — fundo */
+  --color-neve: #f8f9fa;
+  --color-neve-200: #eceef1;
+  --color-neve-300: #dde0e5;
+
+  --radius-card: 12px;
+
+  --shadow-card: 0 1px 2px rgb(26 46 13 / 0.06), 0 4px 14px rgb(26 46 13 / 0.07);
+  --shadow-flutuante: 0 6px 20px rgb(26 46 13 / 0.18);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-neve font-sans text-pinheiro-900 antialiased;
+    margin: 0;
+    overscroll-behavior-y: none;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes cdj-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cdj-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cdj-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes cdj-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes cdj-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@utility anim-fade-up {
+  animation: cdj-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility anim-fade-in {
+  animation: cdj-fade-in 0.25s ease-out both;
+}
+
+@utility anim-slide-in {
+  animation: cdj-slide-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility anim-slide-up {
+  animation: cdj-slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility anim-pulse-suave {
+  animation: cdj-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
