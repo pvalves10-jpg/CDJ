@@ -7,7 +7,7 @@ import { useDespesas } from '../../hooks/useDespesas'
 import { SECOES } from '../../utils/constantes'
 
 function tituloDaRota(caminho) {
-  return SECOES.find((s) => s.para === caminho)?.rotulo ?? 'CDJ'
+  return SECOES.find((s) => s.para === caminho)?.rotulo ?? 'Nossa Jornada'
 }
 
 export default function Layout() {
@@ -33,7 +33,7 @@ export default function Layout() {
         </button>
 
         <h1 className="min-w-0 flex-1 truncate text-lg font-bold">
-          {naHome ? 'CDJ' : tituloDaRota(pathname)}
+          {naHome ? 'Nossa Jornada' : tituloDaRota(pathname)}
         </h1>
 
         {/* Indicador discreto de gravação no Drive. */}

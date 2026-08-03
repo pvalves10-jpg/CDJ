@@ -1,14 +1,28 @@
+import { lazy, Suspense } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout/Layout'
 import Home from './components/Home/Home'
-import Roteiro from './components/Roteiro/Roteiro'
-import Imperdiveis from './components/Imperdiveis/Imperdiveis'
-import Despesas from './components/Despesas/Despesas'
-import Fotos from './components/Fotos/Fotos'
-import Saldo from './components/Saldo/Saldo'
-import Configuracoes from './components/Configuracoes/Configuracoes'
 import Toasts from './components/ui/Toast'
 import { DespesasProvider } from './hooks/useDespesas'
+
+// Code-splitting das rotas: só a Home entra no bundle inicial. As demais
+// (Roteiro/Imperdíveis/Despesas/Fotos/Saldo/Configurações) sobem sob demanda,
+// deixando o primeiro carregamento no celular sensivelmente mais leve.
+const Roteiro = lazy(() => import('./components/Roteiro/Roteiro'))
+const Imperdiveis = lazy(() => import('./components/Imperdiveis/Imperdiveis'))
+const Despesas = lazy(() => import('./components/Despesas/Despesas'))
+const Fotos = lazy(() => import('./components/Fotos/Fotos'))
+const Saldo = lazy(() => import('./components/Saldo/Saldo'))
+const Configuracoes = lazy(() => import('./components/Configuracoes/Configuracoes'))
+
+// Placeholder discreto enquanto o chunk da rota está sendo baixado.
+function CarregandoRota() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-8 text-pinheiro-500">
+      <span className="anim-pulse-suave text-sm font-semibold">Carregando…</span>
+    </div>
+  )
+}
 
 // HashRouter (e não BrowserRouter) porque o GitHub Pages é hospedagem estática:
 // um refresh em /CDJ/despesas devolveria 404. Com hash, tudo resolve no cliente.
@@ -20,12 +34,54 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/roteiro" element={<Roteiro />} />
-            <Route path="/imperdiveis" element={<Imperdiveis />} />
-            <Route path="/fotos" element={<Fotos />} />
-            <Route path="/despesas" element={<Despesas />} />
-            <Route path="/saldo" element={<Saldo />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route
+              path="/roteiro"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Roteiro />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/imperdiveis"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Imperdiveis />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/fotos"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Fotos />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/despesas"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Despesas />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/saldo"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Saldo />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/configuracoes"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Configuracoes />
+                </Suspense>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

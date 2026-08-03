@@ -26,7 +26,7 @@ export default function Drawer({ aberto, aoFechar, usuario }) {
         className="anim-slide-in relative flex w-[17rem] max-w-[80vw] flex-col bg-white shadow-flutuante"
       >
         <div className="bg-pinheiro-700 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5 text-white">
-          <p className="text-xl font-extrabold">CDJ</p>
+          <p className="text-xl font-extrabold">Nossa Jornada</p>
           <p className="text-sm text-pinheiro-200">Campos do Jordão</p>
         </div>
 

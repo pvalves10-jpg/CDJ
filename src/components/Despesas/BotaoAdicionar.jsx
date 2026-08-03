@@ -55,7 +55,8 @@ export default function BotaoAdicionar({ aoEscolherFoto, aoEscolherManual }) {
         />
       )}
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-40">
+      {/* Sobe acima do FAB do chat (canto inferior direito) para não colidir. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-40">
         <div
           ref={containerRef}
           className="mx-auto flex max-w-md flex-col items-end gap-2.5 px-5"

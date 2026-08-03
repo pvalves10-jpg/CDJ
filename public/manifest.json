@@ -1,7 +1,7 @@
 {
-  "name": "CDJ — Campos do Jordão",
-  "short_name": "CDJ",
-  "description": "Fotos e despesas da viagem a Campos do Jordão, com divisão 50/50.",
+  "name": "Nossa Jornada — Campos do Jordão",
+  "short_name": "Nossa Jornada",
+  "description": "Fotos, roteiro e despesas da viagem a Campos do Jordão, com divisão 50/50.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./",

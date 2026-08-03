@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useDrive } from '../../hooks/useDrive'
 import { conversar } from '../../services/chat'
 import { toast } from '../../services/toast'
@@ -31,7 +32,10 @@ export default function ChatGemini() {
     if (aberto) fimRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens, pensando, aberto, anexos])
 
-  if (!autenticado) return null
+  // O FAB é sempre visível (inclusive no mobile). Quando o Drive/Apps Script
+  // ainda não foi configurado, o painel abre com um aviso amigável em vez de
+  // sumir do rodapé — assim ninguém "perde" a funcionalidade por não saber
+  // que ela existe.
 
   async function escolherImagem(evento) {
     const file = evento.target.files?.[0]
@@ -112,7 +116,7 @@ export default function ChatGemini() {
   return (
     <>
       {!aberto && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-[max(6.5rem,calc(env(safe-area-inset-bottom)+6rem))] z-40">
+        <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,calc(env(safe-area-inset-bottom)+1rem))] z-40">
           <div className="mx-auto flex max-w-md justify-end px-4">
             <button
               type="button"
@@ -157,13 +161,35 @@ export default function ChatGemini() {
             </header>
 
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {mensagens.map((m, i) => (
-                <Balao key={i} mensagem={m} />
-              ))}
-              {pensando && (
-                <Balao mensagem={{ autor: 'ia', texto: 'digitando…' }} pensando />
+              {!autenticado ? (
+                <div className="anim-fade-up mx-auto mt-8 max-w-xs rounded-card bg-white p-5 text-center shadow-card">
+                  <p className="text-3xl">⚙️</p>
+                  <p className="mt-2 font-bold text-pinheiro-800">
+                    Chat ainda não configurado
+                  </p>
+                  <p className="mt-1.5 text-sm text-pinheiro-500">
+                    Para o roteirista IA funcionar neste aparelho, é preciso
+                    conectar o Drive/Apps Script em Configurações.
+                  </p>
+                  <Link
+                    to="/configuracoes"
+                    onClick={() => setAberto(false)}
+                    className="mt-4 inline-block rounded-full bg-pinheiro-700 px-5 py-2.5 text-sm font-semibold text-white"
+                  >
+                    Ir para Configurações
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  {mensagens.map((m, i) => (
+                    <Balao key={i} mensagem={m} />
+                  ))}
+                  {pensando && (
+                    <Balao mensagem={{ autor: 'ia', texto: 'digitando…' }} pensando />
+                  )}
+                  <div ref={fimRef} />
+                </>
               )}
-              <div ref={fimRef} />
             </div>
 
             {/* Anexos pendentes */}
@@ -209,7 +235,8 @@ export default function ChatGemini() {
                 type="button"
                 onClick={() => inputImagemRef.current?.click()}
                 aria-label="Anexar foto"
-                className="grid size-11 shrink-0 place-items-center rounded-full text-xl text-pinheiro-600 hover:bg-neve-200"
+                disabled={!autenticado}
+                className="grid size-11 shrink-0 place-items-center rounded-full text-xl text-pinheiro-600 hover:bg-neve-200 disabled:opacity-40"
               >
                 🖼️
               </button>
@@ -217,8 +244,9 @@ export default function ChatGemini() {
                 type="button"
                 onClick={alternarGravacao}
                 aria-label={gravando ? 'Parar gravação' : 'Gravar áudio'}
+                disabled={!autenticado}
                 className={[
-                  'grid size-11 shrink-0 place-items-center rounded-full text-xl transition-colors',
+                  'grid size-11 shrink-0 place-items-center rounded-full text-xl transition-colors disabled:opacity-40',
                   gravando
                     ? 'anim-pulse-suave bg-red-600 text-white'
                     : 'text-pinheiro-600 hover:bg-neve-200',
@@ -237,13 +265,20 @@ export default function ChatGemini() {
                   }
                 }}
                 rows={1}
-                placeholder={gravando ? 'Gravando áudio…' : 'Pergunte algo...'}
-                className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-neve-300 px-4 py-2.5 text-[15px] outline-none focus:border-pinheiro-500"
+                disabled={!autenticado}
+                placeholder={
+                  !autenticado
+                    ? 'Configure o Drive para conversar'
+                    : gravando
+                      ? 'Gravando áudio…'
+                      : 'Pergunte algo...'
+                }
+                className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-neve-300 px-4 py-2.5 text-[15px] outline-none focus:border-pinheiro-500 disabled:bg-neve-200"
               />
               <button
                 type="button"
                 onClick={enviar}
-                disabled={(!texto.trim() && !anexos.length) || pensando || gravando}
+                disabled={(!texto.trim() && !anexos.length) || pensando || gravando || !autenticado}
                 aria-label="Enviar"
                 className="grid size-11 shrink-0 place-items-center rounded-full bg-pinheiro-700 text-white transition-colors disabled:bg-pinheiro-300"
               >

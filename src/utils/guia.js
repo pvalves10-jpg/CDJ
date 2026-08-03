@@ -259,8 +259,8 @@ export function statusViagem(hoje = hojeISO()) {
       fase: 'antes',
       texto:
         dias === 1
-          ? 'Falta 1 dia para Campos! 🏔️'
-          : `Faltam ${dias} dias para Campos! 🏔️`,
+          ? 'Falta 1 dia para Campos do Jordão! 🏔️'
+          : `Faltam ${dias} dias para Campos do Jordão! 🏔️`,
     }
   }
   if (hoje > FIM_VIAGEM) {

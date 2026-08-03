@@ -28,6 +28,8 @@ export default function Home() {
           src={inicio}
           alt="Nossa Jornada — Louise e Paulo Victor: Amor, Parceria e Aventura"
           className="w-full"
+          decoding="async"
+          fetchpriority="high"
         />
       </div>
 
