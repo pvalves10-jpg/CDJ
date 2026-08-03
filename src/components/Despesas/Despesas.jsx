@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ItemDespesa from './ItemDespesa'
 import DetalheDespesa from './DetalheDespesa'
+import FiltrosDespesas from './FiltrosDespesas'
 import FormularioDespesa from './FormularioDespesa'
 import BotaoAdicionar from './BotaoAdicionar'
 import VisualizadorFoto from '../Fotos/VisualizadorFoto'
@@ -17,6 +18,39 @@ import { formatarMoeda, nomeComprovante } from '../../utils/formatters'
 
 /** Comprovante é sempre 1 imagem — sem navegação entre fotos. */
 const SEM_NAVEGACAO = () => {}
+
+const ORDEM_KEY = 'cdj:ordem-despesas'
+const num = (v) => Number(v) || 0
+
+function cmpDataDesc(a, b) {
+  const d = String(b.data ?? '').localeCompare(String(a.data ?? ''))
+  return d !== 0 ? d : String(b.criado_em ?? '').localeCompare(String(a.criado_em ?? ''))
+}
+function cmpDataAsc(a, b) {
+  const d = String(a.data ?? '').localeCompare(String(b.data ?? ''))
+  return d !== 0 ? d : String(a.criado_em ?? '').localeCompare(String(b.criado_em ?? ''))
+}
+
+/** Ordena uma cópia das despesas conforme a opção escolhida. */
+function ordenarPor(despesas, ordem, ordemCategoria) {
+  const arr = [...despesas]
+  switch (ordem) {
+    case 'data_asc':
+      return arr.sort(cmpDataAsc)
+    case 'valor_desc':
+      return arr.sort((a, b) => num(b.valor) - num(a.valor) || cmpDataDesc(a, b))
+    case 'valor_asc':
+      return arr.sort((a, b) => num(a.valor) - num(b.valor) || cmpDataDesc(a, b))
+    case 'categoria':
+      return arr.sort((a, b) => {
+        const ca = ordemCategoria.get(a.categoria) ?? 999
+        const cb = ordemCategoria.get(b.categoria) ?? 999
+        return ca - cb || cmpDataDesc(a, b)
+      })
+    default:
+      return arr.sort(cmpDataDesc)
+  }
+}
 
 export default function Despesas() {
   const {
@@ -48,6 +82,49 @@ export default function Despesas() {
     : null
 
   const fecharComprovante = useCallback(() => setVerComprovante(null), [])
+
+  // Ordenação (lembrada entre sessões) e filtro por categoria (transitório).
+  const [ordem, setOrdem] = useState(() => {
+    try {
+      return localStorage.getItem(ORDEM_KEY) || 'data_desc'
+    } catch {
+      return 'data_desc'
+    }
+  })
+  const [filtroCategoria, setFiltroCategoria] = useState(null)
+
+  const mudarOrdem = useCallback((o) => {
+    setOrdem(o)
+    try {
+      localStorage.setItem(ORDEM_KEY, o)
+    } catch {
+      /* sem persistência — segue na sessão */
+    }
+  }, [])
+
+  const contagemCategoria = useMemo(() => {
+    const m = {}
+    for (const d of despesas) {
+      const c = d.categoria || 'outro'
+      m[c] = (m[c] || 0) + 1
+    }
+    return m
+  }, [despesas])
+
+  // Se o filtro ativo deixar de existir (categoria sem despesas), volta p/ tudo.
+  useEffect(() => {
+    if (filtroCategoria && !contagemCategoria[filtroCategoria]) {
+      setFiltroCategoria(null)
+    }
+  }, [filtroCategoria, contagemCategoria])
+
+  const despesasVisiveis = useMemo(() => {
+    const base = filtroCategoria
+      ? despesas.filter((d) => (d.categoria || 'outro') === filtroCategoria)
+      : despesas
+    const ordemCategoria = new Map(categorias.map((c, i) => [c.id, i]))
+    return ordenarPor(base, ordem, ordemCategoria)
+  }, [despesas, filtroCategoria, ordem, categorias])
 
   // Fluxo do comprovante
   const [lendo, setLendo] = useState(false)
@@ -216,13 +293,24 @@ export default function Despesas() {
       )}
 
       {despesas.length > 0 && (
-        <div className="flex items-baseline justify-between px-5 pt-4 pb-1">
-          <span className="text-sm text-pinheiro-500">
-            {despesas.length} {despesas.length === 1 ? 'despesa' : 'despesas'}
-          </span>
-          <span className="text-sm font-bold tabular-nums text-pinheiro-700">
-            {formatarMoeda(saldo.total)}
-          </span>
+        <div className="px-4 pt-4">
+          <div className="flex items-baseline justify-between px-1 pb-2.5">
+            <span className="text-sm text-pinheiro-500">
+              {despesas.length} {despesas.length === 1 ? 'despesa' : 'despesas'}
+            </span>
+            <span className="text-sm font-bold tabular-nums text-pinheiro-700">
+              {formatarMoeda(saldo.total)}
+            </span>
+          </div>
+          <FiltrosDespesas
+            ordem={ordem}
+            aoMudarOrdem={mudarOrdem}
+            categoria={filtroCategoria}
+            aoMudarCategoria={setFiltroCategoria}
+            categorias={categorias}
+            contagem={contagemCategoria}
+            total={despesas.length}
+          />
         </div>
       )}
 
@@ -231,9 +319,11 @@ export default function Despesas() {
           <ListaEsqueleto />
         ) : despesas.length === 0 ? (
           <EstadoVazio autenticado={autenticado} />
+        ) : despesasVisiveis.length === 0 ? (
+          <SemNaCategoria aoLimpar={() => setFiltroCategoria(null)} />
         ) : (
           <ul className="space-y-2.5">
-            {despesas.map((despesa) => (
+            {despesasVisiveis.map((despesa) => (
               <ItemDespesa
                 key={despesa.id}
                 despesa={despesa}
@@ -370,6 +460,26 @@ function OverlayLendo() {
           O Gemini está extraindo local, data e valor da foto.
         </p>
       </div>
+    </div>
+  )
+}
+
+function SemNaCategoria({ aoLimpar }) {
+  return (
+    <div className="anim-fade-up flex flex-col items-center gap-2 px-6 py-16 text-center">
+      <span aria-hidden="true" className="text-5xl">
+        🔍
+      </span>
+      <p className="font-semibold text-pinheiro-700">
+        Nenhuma despesa nesta categoria
+      </p>
+      <button
+        type="button"
+        onClick={aoLimpar}
+        className="mt-1 text-sm font-semibold text-outono-600"
+      >
+        Ver todas as despesas
+      </button>
     </div>
   )
 }

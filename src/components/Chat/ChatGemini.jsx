@@ -1,23 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDrive } from '../../hooks/useDrive'
+import { useDespesas } from '../../hooks/useDespesas'
 import { conversar } from '../../services/chat'
 import { toast } from '../../services/toast'
 import { Spinner } from '../ui/Botao'
 import { blobParaBase64, reduzirImagem } from '../../utils/imagem'
 import { iniciarGravacao } from '../../utils/audio'
+import { montarContextoViagem } from '../../utils/contextoViagem'
+import { hojeISO } from '../../utils/formatters'
 import Markdown from './Markdown'
 
 const SAUDACAO = {
   autor: 'ia',
   texto:
-    'Oi! ✨ Sou o roteirista de vocês em Campos do Jordão. Pergunte o que quiser — posso pesquisar na web, ver uma foto que você mandar ou ouvir um áudio. O que fazer se chover? Onde jantar romântico? Manda ver!',
+    'Oi! ✨ Sou o roteirista de vocês em Campos do Jordão. Pergunte o que quiser — dá pra pesquisar na web, ver uma foto ou ouvir um áudio, e eu também sei dos seus **gastos e saldo** (ex.: "qual foi o maior gasto?"). O que fazer se chover? Onde jantar romântico? Manda ver!',
 }
 
 const GRADIENTE = 'bg-gradient-to-br from-blue-500 via-indigo-500 to-fuchsia-500'
 
 export default function ChatGemini() {
   const { autenticado } = useDrive()
+  const { despesas, saldo, categorias, guia } = useDespesas()
   const [aberto, setAberto] = useState(false)
   const [mensagens, setMensagens] = useState([SAUDACAO])
   const [texto, setTexto] = useState('')
@@ -105,7 +109,11 @@ export default function ChatGemini() {
     setAnexos([])
     setPensando(true)
     try {
-      const resposta = await conversar(nova)
+      const contexto = montarContextoViagem(
+        { despesas, saldo, categorias, guia },
+        hojeISO(),
+      )
+      const resposta = await conversar(nova, { contexto })
       setMensagens((m) => [...m, { autor: 'ia', texto: resposta }])
     } catch (e) {
       setMensagens((m) => [...m, { autor: 'ia', texto: `Ops — ${e.message}` }])
