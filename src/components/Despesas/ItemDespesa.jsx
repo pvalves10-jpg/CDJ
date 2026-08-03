@@ -12,6 +12,7 @@ export default function ItemDespesa({
   onEditar,
   onExcluir,
   onVerComprovante,
+  onAbrir,
 }) {
   const [dx, setDx] = useState(0)
   const [arrastando, setArrastando] = useState(false)
@@ -49,11 +50,29 @@ export default function ItemDespesa({
 
   function aoSoltar() {
     if (!inicio.current) return
-    const eraX = eixo.current === 'x'
+    const movimento = eixo.current
+    const base = inicio.current.base
     inicio.current = null
     eixo.current = null
     setArrastando(false)
-    if (eraX) setDx(dx < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0)
+    if (movimento === 'x') {
+      setDx(dx < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0)
+    } else if (movimento === null) {
+      // Toque limpo (sem arrasto nem scroll): abre os detalhes — ou fecha as
+      // ações, se o swipe estiver aberto.
+      if (base !== 0) setDx(0)
+      else onAbrir?.(despesa)
+    }
+  }
+
+  // pointercancel = o navegador assumiu o scroll: só acomoda o item, nunca
+  // interpreta como toque (senão uma rolagem rápida abriria os detalhes).
+  function aoCancelar() {
+    if (!inicio.current) return
+    inicio.current = null
+    eixo.current = null
+    setArrastando(false)
+    setDx((d) => (d < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0))
   }
 
   function fechar() {
@@ -102,13 +121,13 @@ export default function ItemDespesa({
         onPointerDown={aoPressionar}
         onPointerMove={aoMover}
         onPointerUp={aoSoltar}
-        onPointerCancel={aoSoltar}
+        onPointerCancel={aoCancelar}
         style={{
           transform: `translateX(${dx}px)`,
           transition: arrastando ? 'none' : 'transform 0.22s cubic-bezier(0.22,1,0.36,1)',
           touchAction: 'pan-y',
         }}
-        className="relative flex items-center gap-3 bg-white px-4 py-3.5"
+        className="relative flex cursor-pointer items-center gap-3 bg-white px-4 py-3.5 select-none"
       >
         <span
           aria-hidden="true"
@@ -118,6 +137,8 @@ export default function ItemDespesa({
         </span>
 
         <div className="min-w-0 flex-1">
+          {/* Abrir detalhes é o toque no item inteiro (aoSoltar) — sem botão
+              aqui para não matar o swipe que começa sobre o título. */}
           <p className="truncate font-semibold text-pinheiro-900">
             {despesa.local || categoria.label}
           </p>
@@ -150,6 +171,7 @@ export default function ItemDespesa({
           <button
             type="button"
             onClick={() => setDx(aberto ? 0 : -LARGURA_ACOES)}
+            onPointerDown={(e) => e.stopPropagation()}
             aria-label={`Ações para ${despesa.local || 'despesa'}`}
             aria-expanded={aberto}
             className="-mr-2 rounded-full px-2 py-1 text-pinheiro-400 hover:bg-neve-200 hover:text-pinheiro-700"

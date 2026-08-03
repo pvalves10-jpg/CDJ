@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ItemDespesa from './ItemDespesa'
+import DetalheDespesa from './DetalheDespesa'
 import FormularioDespesa from './FormularioDespesa'
 import BotaoAdicionar from './BotaoAdicionar'
 import VisualizadorFoto from '../Fotos/VisualizadorFoto'
@@ -13,6 +14,9 @@ import { lerComprovante } from '../../services/gemini'
 import { uploadComprovante } from '../../services/drive'
 import { toast } from '../../services/toast'
 import { formatarMoeda, nomeComprovante } from '../../utils/formatters'
+
+/** Comprovante é sempre 1 imagem — sem navegação entre fotos. */
+const SEM_NAVEGACAO = () => {}
 
 export default function Despesas() {
   const {
@@ -35,6 +39,15 @@ export default function Despesas() {
   const [emEdicao, setEmEdicao] = useState(null)
   const [paraExcluir, setParaExcluir] = useState(null)
   const [verComprovante, setVerComprovante] = useState(null)
+  const [detalheId, setDetalheId] = useState(null)
+  const [anexando, setAnexando] = useState(false)
+
+  // Deriva da lista para o detalhe refletir edições/anexos ao vivo.
+  const detalhe = detalheId
+    ? despesas.find((d) => d.id === detalheId) ?? null
+    : null
+
+  const fecharComprovante = useCallback(() => setVerComprovante(null), [])
 
   // Fluxo do comprovante
   const [lendo, setLendo] = useState(false)
@@ -150,10 +163,35 @@ export default function Despesas() {
     try {
       await remover(paraExcluir.id)
       toast.ok('Despesa excluída.')
+      if (detalheId === paraExcluir.id) setDetalheId(null)
     } catch {
       /* o hook já avisou por toast */
     } finally {
       setParaExcluir(null)
+    }
+  }
+
+  /** Anexa (ou troca) o comprovante de uma despesa já existente. */
+  async function anexarComprovante(despesa, arquivo) {
+    setAnexando(true)
+    try {
+      const enviado = await uploadComprovante(arquivo, {
+        nome: nomeComprovante(despesa.data, despesa.local, arquivo),
+      })
+      if (enviado?.id) {
+        await atualizar(despesa.id, { comprovante_drive_id: enviado.id })
+        toast.ok('Comprovante anexado.')
+      } else {
+        toast.erro('O envio não retornou o arquivo. Tente de novo.')
+      }
+    } catch (e) {
+      toast.erro(
+        e.rede
+          ? 'Sem conexão — não consegui enviar o comprovante agora.'
+          : `Não consegui anexar o comprovante: ${e.message}`,
+      )
+    } finally {
+      setAnexando(false)
     }
   }
 
@@ -203,6 +241,7 @@ export default function Despesas() {
                 onEditar={abrirEdicao}
                 onExcluir={setParaExcluir}
                 onVerComprovante={setVerComprovante}
+                onAbrir={(d) => setDetalheId(d.id)}
               />
             ))}
           </ul>
@@ -253,6 +292,25 @@ export default function Despesas() {
         }
       />
 
+      {detalhe && (
+        <DetalheDespesa
+          despesa={detalhe}
+          categorias={categorias}
+          anexando={anexando}
+          aoFechar={() => setDetalheId(null)}
+          onEditar={(d) => {
+            setDetalheId(null)
+            abrirEdicao(d)
+          }}
+          onExcluir={(d) => {
+            setDetalheId(null)
+            setParaExcluir(d)
+          }}
+          onVerComprovante={setVerComprovante}
+          onAnexar={anexarComprovante}
+        />
+      )}
+
       {verComprovante && (
         <VisualizadorFoto
           fotos={[
@@ -262,8 +320,8 @@ export default function Despesas() {
             },
           ]}
           indice={0}
-          aoFechar={() => setVerComprovante(null)}
-          aoNavegar={() => {}}
+          aoFechar={fecharComprovante}
+          aoNavegar={SEM_NAVEGACAO}
         />
       )}
 

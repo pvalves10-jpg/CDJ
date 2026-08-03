@@ -2,26 +2,30 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import ImagemDrive from './ImagemDrive'
 import { prefetchImagem } from '../../services/drive'
+import { useEscape } from '../../hooks/useEscape'
 
 export default function VisualizadorFoto({ fotos, indice, aoFechar, aoNavegar }) {
   const foto = fotos[indice]
 
+  // Fecha no Esc pela pilha: se estiver por cima de um modal, só ele fecha.
+  useEscape(aoFechar)
+
   useEffect(() => {
     const anterior = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = anterior
+    }
+  }, [])
 
+  useEffect(() => {
     const aoTeclar = (evento) => {
-      if (evento.key === 'Escape') aoFechar()
       if (evento.key === 'ArrowLeft') aoNavegar(-1)
       if (evento.key === 'ArrowRight') aoNavegar(1)
     }
     document.addEventListener('keydown', aoTeclar)
-
-    return () => {
-      document.body.style.overflow = anterior
-      document.removeEventListener('keydown', aoTeclar)
-    }
-  }, [aoFechar, aoNavegar])
+    return () => document.removeEventListener('keydown', aoTeclar)
+  }, [aoNavegar])
 
   // Adianta as vizinhas para o swipe ficar instantâneo (cai no cache).
   useEffect(() => {
@@ -34,7 +38,7 @@ export default function VisualizadorFoto({ fotos, indice, aoFechar, aoNavegar })
 
   return createPortal(
     <div
-      className="anim-fade-in fixed inset-0 z-50 flex flex-col bg-black"
+      className="anim-fade-in fixed inset-0 z-[60] flex flex-col bg-black"
       role="dialog"
       aria-modal="true"
       aria-label={foto.name}

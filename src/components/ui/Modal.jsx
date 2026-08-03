@@ -1,23 +1,19 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useEscape } from '../../hooks/useEscape'
 
 /** Bottom sheet: sobe de baixo, ocupa no máximo 92% da altura e rola por dentro. */
 export default function Modal({ aberto, aoFechar, titulo, children, rodape }) {
+  useEscape(aoFechar, aberto)
+
   useEffect(() => {
     if (!aberto) return
     const anterior = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-
-    const aoTeclar = (e) => {
-      if (e.key === 'Escape') aoFechar?.()
-    }
-    document.addEventListener('keydown', aoTeclar)
-
     return () => {
       document.body.style.overflow = anterior
-      document.removeEventListener('keydown', aoTeclar)
     }
-  }, [aberto, aoFechar])
+  }, [aberto])
 
   if (!aberto) return null
 
