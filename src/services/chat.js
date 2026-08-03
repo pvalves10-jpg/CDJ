@@ -12,9 +12,18 @@ export class ErroChat extends Error {
  * Envia o histórico (só autor + texto, limitado) e devolve a resposta.
  */
 export async function conversar(mensagens, { signal } = {}) {
-  const enxuto = mensagens
-    .slice(-16)
-    .map((m) => ({ autor: m.autor, texto: m.texto }))
+  const lista = mensagens.slice(-12)
+  const enxuto = lista.map((m, i) => {
+    const base = { autor: m.autor, texto: m.texto }
+    // Só a última mensagem leva anexos (foto/áudio) — evita reenviar mídia pesada.
+    if (i === lista.length - 1 && m.anexos?.length) {
+      base.anexos = m.anexos.map((a) => ({
+        mimeType: a.mimeType,
+        base64: a.base64,
+      }))
+    }
+    return base
+  })
 
   // A conversa enviada ao Gemini deve começar com o usuário — descarta
   // mensagens da IA no início (ex.: a saudação fixa).

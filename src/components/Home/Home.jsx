@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Hoje from './Hoje'
+import BaixarApp from './BaixarApp'
 import SeletorUsuario from './SeletorUsuario'
 import ResumoSaldo from '../Saldo/ResumoSaldo'
 import Botao from '../ui/Botao'
@@ -63,6 +64,8 @@ export default function Home() {
         <Atalho para="/despesas" emoji="🧾" rotulo="Despesas" />
         <Atalho para="/fotos" emoji="📸" rotulo="Fotos" />
       </nav>
+
+      <BaixarApp />
     </div>
   )
 }

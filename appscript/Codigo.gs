@@ -278,8 +278,15 @@ var PERSONA_CHAT =
   'viagem deles a Campos do Jordão (04 a 07/08). Responda SEMPRE em português ' +
   'do Brasil, de forma curta, prática e calorosa. Dê dicas de passeios, ' +
   'restaurantes, clima, o que levar, rotas, o que fazer se chover, custos ' +
-  'aproximados e ideias românticas. Se não souber algo específico, seja ' +
-  'honesto. Use no máximo uns 4 parágrafos curtos ou uma lista objetiva.';
+  'aproximados e ideias românticas. Use no máximo uns 4 parágrafos curtos ou ' +
+  'uma lista objetiva. Quando precisar de informações ATUAIS (preços, horários, ' +
+  'eventos, disponibilidade, clima), PESQUISE na web com a ferramenta de busca ' +
+  'e cite o que encontrou. Se receber uma FOTO, analise-a (ex.: identificar um ' +
+  'lugar, ler um cardápio ou uma placa). Se receber um ÁUDIO, entenda o que foi ' +
+  'dito e responda normalmente.';
+
+// Modelos que suportam busca na web (google_search) e entrada de foto/áudio.
+var MODELOS_CHAT = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 
 function chat_(req) {
   var chave = props_().getProperty('GEMINI_API_KEY');
@@ -289,50 +296,75 @@ function chat_(req) {
   var contents = [];
   for (var i = 0; i < mensagens.length; i++) {
     var m = mensagens[i];
+    var parts = [];
     var texto = String((m && m.texto) || '').trim();
-    if (!texto) continue;
-    contents.push({
-      role: m.autor === 'ia' ? 'model' : 'user',
-      parts: [{ text: texto }],
-    });
+    if (texto) parts.push({ text: texto });
+    var anexos = (m && m.anexos) || [];
+    for (var k = 0; k < anexos.length; k++) {
+      var a = anexos[k];
+      if (a && a.base64 && a.mimeType) {
+        parts.push({ inline_data: { mime_type: a.mimeType, data: a.base64 } });
+      }
+    }
+    if (!parts.length) continue;
+    contents.push({ role: m.autor === 'ia' ? 'model' : 'user', parts: parts });
   }
   if (!contents.length) throw new Error('Mensagem vazia.');
 
-  var payload = {
+  var base = {
     systemInstruction: { parts: [{ text: PERSONA_CHAT }] },
     contents: contents,
     generationConfig: { temperature: 0.7 },
   };
+  var comTools = {
+    systemInstruction: base.systemInstruction,
+    contents: contents,
+    tools: [{ google_search: {} }],
+    generationConfig: base.generationConfig,
+  };
 
-  var ultimo = '';
-  for (var j = 0; j < MODELOS_GEMINI.length; j++) {
-    var url =
-      'https://generativelanguage.googleapis.com/v1beta/models/' +
-      MODELOS_GEMINI[j] +
-      ':generateContent?key=' +
-      encodeURIComponent(chave);
-    var resp = UrlFetchApp.fetch(url, {
+  function extrair_(resp) {
+    var data = JSON.parse(resp.getContentText());
+    var cand = data.candidates && data.candidates[0];
+    if (cand && cand.content && cand.content.parts) {
+      return cand.content.parts
+        .map(function (p) {
+          return p.text || '';
+        })
+        .join('');
+    }
+    return '';
+  }
+  function bater_(url, payload) {
+    return UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
+  }
+
+  var ultimo = '';
+  for (var j = 0; j < MODELOS_CHAT.length; j++) {
+    var url =
+      'https://generativelanguage.googleapis.com/v1beta/models/' +
+      MODELOS_CHAT[j] +
+      ':generateContent?key=' +
+      encodeURIComponent(chave);
+
+    var resp = bater_(url, comTools);
     var code = resp.getResponseCode();
-    if (code === 200) {
-      var data = JSON.parse(resp.getContentText());
-      var cand = data.candidates && data.candidates[0];
-      var out = '';
-      if (cand && cand.content && cand.content.parts) {
-        out = cand.content.parts
-          .map(function (p) {
-            return p.text || '';
-          })
-          .join('');
-      }
-      return out;
+    if (code === 200) return extrair_(resp);
+
+    // A busca na web (tool) pode não estar disponível nesta chave: tenta sem.
+    if (code === 400) {
+      var resp2 = bater_(url, base);
+      if (resp2.getResponseCode() === 200) return extrair_(resp2);
+      ultimo = resp2.getContentText();
+    } else {
+      ultimo = resp.getContentText();
+      if (code !== 404) throw new Error('Gemini erro ' + code + ': ' + ultimo);
     }
-    ultimo = resp.getContentText();
-    if (code !== 404) throw new Error('Gemini erro ' + code + ': ' + ultimo);
   }
   throw new Error('Nenhum modelo do Gemini respondeu. ' + ultimo);
 }

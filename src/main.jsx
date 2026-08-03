@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './services/instalar' // captura o evento de instalação do PWA cedo
 import App from './App.jsx'
 
 createRoot(document.getElementById('root')).render(

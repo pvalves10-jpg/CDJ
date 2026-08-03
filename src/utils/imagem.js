@@ -36,3 +36,13 @@ export async function reduzirImagem(file, maxLado = 2000, qualidade = 0.85) {
     bitmap.close?.()
   }
 }
+
+/** Blob/File → base64 (sem o prefixo `data:`). */
+export function blobParaBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolve(String(leitor.result).split(',')[1] ?? '')
+    leitor.onerror = () => reject(new Error('Não consegui ler o arquivo.'))
+    leitor.readAsDataURL(blob)
+  })
+}
