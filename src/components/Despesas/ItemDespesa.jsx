@@ -18,6 +18,7 @@ export default function ItemDespesa({
   const [arrastando, setArrastando] = useState(false)
   const inicio = useRef(null)
   const eixo = useRef(null)
+  const arrastou = useRef(false)
 
   const categoria = acharCategoria(despesa.categoria, categorias)
   const aberto = dx <= -LARGURA_ACOES / 2
@@ -26,6 +27,7 @@ export default function ItemDespesa({
     if (evento.pointerType === 'mouse' && evento.button !== 0) return
     inicio.current = { x: evento.clientX, y: evento.clientY, base: dx }
     eixo.current = null
+    arrastou.current = false
   }
 
   function aoMover(evento) {
@@ -38,6 +40,7 @@ export default function ItemDespesa({
       // Decide de uma vez: ou é swipe, ou é scroll da lista.
       eixo.current = Math.abs(deltaX) > Math.abs(deltaY) ? 'x' : 'y'
       if (eixo.current === 'x') {
+        arrastou.current = true
         setArrastando(true)
         evento.currentTarget.setPointerCapture?.(evento.pointerId)
       }
@@ -48,31 +51,36 @@ export default function ItemDespesa({
     setDx(proximo)
   }
 
+  // Só encaixa o swipe. Abrir/fechar é responsabilidade do onClick (mais
+  // confiável no celular — ver aoClicar).
   function aoSoltar() {
     if (!inicio.current) return
-    const movimento = eixo.current
-    const base = inicio.current.base
+    const foiSwipe = eixo.current === 'x'
     inicio.current = null
     eixo.current = null
     setArrastando(false)
-    if (movimento === 'x') {
-      setDx(dx < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0)
-    } else if (movimento === null) {
-      // Toque limpo (sem arrasto nem scroll): abre os detalhes — ou fecha as
-      // ações, se o swipe estiver aberto.
-      if (base !== 0) setDx(0)
-      else onAbrir?.(despesa)
-    }
+    if (foiSwipe) setDx((d) => (d < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0))
   }
 
-  // pointercancel = o navegador assumiu o scroll: só acomoda o item, nunca
-  // interpreta como toque (senão uma rolagem rápida abriria os detalhes).
   function aoCancelar() {
     if (!inicio.current) return
     inicio.current = null
     eixo.current = null
     setArrastando(false)
     setDx((d) => (d < -LARGURA_ACOES / 2 ? -LARGURA_ACOES : 0))
+  }
+
+  // Abrir os detalhes (ou fechar o swipe) via clique NATIVO: o navegador só
+  // dispara `click` num toque real — nunca ao rolar — e tolera o tremor do
+  // dedo. Bem mais confiável no mobile do que inferir pelos pointer events.
+  function aoClicar() {
+    if (arrastou.current) {
+      // Foi um arrasto: ignora o "clique fantasma" que segue o pointerup.
+      arrastou.current = false
+      return
+    }
+    if (dx !== 0) setDx(0)
+    else onAbrir?.(despesa)
   }
 
   function fechar() {
@@ -122,6 +130,7 @@ export default function ItemDespesa({
         onPointerMove={aoMover}
         onPointerUp={aoSoltar}
         onPointerCancel={aoCancelar}
+        onClick={aoClicar}
         style={{
           transform: `translateX(${dx}px)`,
           transition: arrastando ? 'none' : 'transform 0.22s cubic-bezier(0.22,1,0.36,1)',
@@ -151,7 +160,10 @@ export default function ItemDespesa({
             {despesa.comprovante_drive_id && (
               <button
                 type="button"
-                onClick={() => onVerComprovante?.(despesa)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onVerComprovante?.(despesa)
+                }}
                 onPointerDown={(e) => e.stopPropagation()}
                 aria-label="Ver comprovante"
                 title="Ver comprovante"
@@ -170,7 +182,10 @@ export default function ItemDespesa({
           {/* Alternativa ao swipe: teclado, mouse e leitores de tela. */}
           <button
             type="button"
-            onClick={() => setDx(aberto ? 0 : -LARGURA_ACOES)}
+            onClick={(e) => {
+              e.stopPropagation()
+              setDx(aberto ? 0 : -LARGURA_ACOES)
+            }}
             onPointerDown={(e) => e.stopPropagation()}
             aria-label={`Ações para ${despesa.local || 'despesa'}`}
             aria-expanded={aberto}
