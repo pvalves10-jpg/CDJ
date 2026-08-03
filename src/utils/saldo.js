@@ -72,16 +72,28 @@ export function calcularSaldo(despesas = [], acertos = []) {
   }
 }
 
-/** Totais por categoria, do maior para o menor. */
-export function totaisPorCategoria(despesas = []) {
-  const mapa = new Map()
-  for (const despesa of despesas) {
-    const valor = Number(despesa?.valor) || 0
-    if (valor <= 0) continue
-    const id = despesa.categoria ?? 'outro'
-    mapa.set(id, (mapa.get(id) ?? 0) + valor)
+/** Texto pronto para colar no WhatsApp. */
+export function textoDoSaldo(resumo, formatarMoeda, nomeDe) {
+  const linhas = [
+    '🏔️ *CDJ — Campos do Jordão*',
+    '',
+    `Total gasto: ${formatarMoeda(resumo.total)}`,
+  ]
+
+  for (const [id, valor] of Object.entries(resumo.pago)) {
+    linhas.push(`${nomeDe(id)} pagou: ${formatarMoeda(valor)}`)
   }
-  return [...mapa.entries()]
-    .map(([categoria, valor]) => ({ categoria, valor: arredondar(valor) }))
-    .sort((x, y) => y.valor - x.valor)
+
+  if (resumo.totalAcertos > 0) {
+    linhas.push(`Já acertado por Pix: ${formatarMoeda(resumo.totalAcertos)}`)
+  }
+
+  linhas.push('')
+  linhas.push(
+    resumo.quites
+      ? '✅ Estamos quites!'
+      : `👉 *${nomeDe(resumo.devedor)} deve ${formatarMoeda(resumo.valor)} a ${nomeDe(resumo.credor)}*`,
+  )
+
+  return linhas.join('\n')
 }
