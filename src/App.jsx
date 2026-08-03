@@ -9,6 +9,7 @@ import { DespesasProvider } from './hooks/useDespesas'
 // (Roteiro/Imperdíveis/Despesas/Fotos/Saldo/Configurações) sobem sob demanda,
 // deixando o primeiro carregamento no celular sensivelmente mais leve.
 const Roteiro = lazy(() => import('./components/Roteiro/Roteiro'))
+const Mapa = lazy(() => import('./components/Mapa/Mapa'))
 const Imperdiveis = lazy(() => import('./components/Imperdiveis/Imperdiveis'))
 const Despesas = lazy(() => import('./components/Despesas/Despesas'))
 const Fotos = lazy(() => import('./components/Fotos/Fotos'))
@@ -39,6 +40,14 @@ export default function App() {
               element={
                 <Suspense fallback={<CarregandoRota />}>
                   <Roteiro />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/mapa"
+              element={
+                <Suspense fallback={<CarregandoRota />}>
+                  <Mapa />
                 </Suspense>
               }
             />

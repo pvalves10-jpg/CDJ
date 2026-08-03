@@ -20,6 +20,7 @@ function arredondar(valor) {
 export function calcularSaldo(despesas = [], acertos = []) {
   const pago = Object.fromEntries(USUARIOS.map((u) => [u.id, 0]))
   const porCategoria = {}
+  const porDia = {}
 
   let total = 0
   for (const despesa of despesas) {
@@ -29,6 +30,8 @@ export function calcularSaldo(despesas = [], acertos = []) {
     if (despesa.pagador in pago) pago[despesa.pagador] += valor
     const cat = despesa.categoria || 'outro'
     porCategoria[cat] = (porCategoria[cat] || 0) + valor
+    const dia = String(despesa.data || '').slice(0, 10)
+    if (dia) porDia[dia] = (porDia[dia] || 0) + valor
   }
 
   const cota = total / 2
@@ -68,6 +71,9 @@ export function calcularSaldo(despesas = [], acertos = []) {
     ),
     porCategoria: Object.fromEntries(
       Object.entries(porCategoria).map(([id, v]) => [id, arredondar(v)]),
+    ),
+    porDia: Object.fromEntries(
+      Object.entries(porDia).map(([id, v]) => [id, arredondar(v)]),
     ),
     quites,
     devedor,

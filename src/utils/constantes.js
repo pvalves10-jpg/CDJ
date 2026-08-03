@@ -16,6 +16,7 @@ export const USUARIOS = [
 export const SECOES = [
   { para: '/', emoji: '🏠', rotulo: 'Início' },
   { para: '/roteiro', emoji: '🗺️', rotulo: 'Roteiro' },
+  { para: '/mapa', emoji: '📍', rotulo: 'Mapa' },
   { para: '/imperdiveis', emoji: '⭐', rotulo: 'Imperdíveis' },
   { para: '/fotos', emoji: '📸', rotulo: 'Fotos' },
   { para: '/despesas', emoji: '🧾', rotulo: 'Despesas' },

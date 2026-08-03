@@ -6,7 +6,7 @@ import Modal from '../ui/Modal'
 import VisualizadorFoto from '../Fotos/VisualizadorFoto'
 import { useDespesas } from '../../hooks/useDespesas'
 import { toast } from '../../services/toast'
-import { formatarMoeda, formatarData } from '../../utils/formatters'
+import { formatarMoeda, formatarData, hojeISO } from '../../utils/formatters'
 import { acharCategoria, nomeUsuario, USUARIOS } from '../../utils/constantes'
 import { textoDoSaldo } from '../../utils/saldo'
 
@@ -125,6 +125,12 @@ export default function Saldo() {
           )}
         </dl>
       </Cartao>
+
+      {Object.keys(saldo.porDia).length > 0 && (
+        <Cartao titulo="Gastos por dia">
+          <GraficoPorDia porDia={saldo.porDia} />
+        </Cartao>
+      )}
 
       {Object.keys(saldo.porCategoria).length > 0 && (
         <Cartao titulo="Gastos por categoria">
@@ -271,6 +277,51 @@ export default function Saldo() {
       </Modal>
     </div>
   )
+}
+
+/** Barras verticais do gasto por dia da viagem (ordem cronológica). */
+function GraficoPorDia({ porDia }) {
+  const dias = Object.entries(porDia).sort(([a], [b]) => a.localeCompare(b))
+  const maximo = Math.max(...dias.map(([, v]) => v), 0)
+  const hoje = hojeISO()
+
+  return (
+    <ul className="flex items-end gap-2">
+      {dias.map(([dia, valor]) => {
+        const altura = maximo > 0 ? Math.max(4, (valor / maximo) * 100) : 0
+        const ehHoje = dia === hoje
+        return (
+          <li key={dia} className="flex flex-1 flex-col items-center gap-1">
+            <span className="text-[11px] font-bold tabular-nums text-pinheiro-700">
+              {moedaCurta(valor)}
+            </span>
+            <div className="flex h-28 w-full items-end">
+              <div
+                className={`w-full rounded-t transition-[height] duration-500 ${ehHoje ? 'bg-pinheiro-600' : 'bg-outono-500'}`}
+                style={{ height: `${altura}%` }}
+              />
+            </div>
+            <span
+              className={`text-[11px] tabular-nums ${ehHoje ? 'font-bold text-pinheiro-700' : 'text-pinheiro-500'}`}
+            >
+              {ddmm(dia)}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** "R$ 401" / "R$ 1,2k" — compacto para caber sob as barras. */
+function moedaCurta(valor) {
+  if (valor >= 1000) return `R$ ${(valor / 1000).toFixed(1).replace('.', ',')}k`
+  return `R$ ${Math.round(valor)}`
+}
+
+function ddmm(iso) {
+  const [, m, d] = iso.split('-')
+  return `${d}/${m}`
 }
 
 function Linha({ rotulo, valor, forte = false }) {
