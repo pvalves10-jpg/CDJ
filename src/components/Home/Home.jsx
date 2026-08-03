@@ -1,15 +1,13 @@
 import { Link } from 'react-router-dom'
-import Avatar from './Avatar'
-import HeroFotos from './HeroFotos'
 import Hoje from './Hoje'
 import SeletorUsuario from './SeletorUsuario'
 import ResumoSaldo from '../Saldo/ResumoSaldo'
 import Botao from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
 import { useUsuario } from '../../hooks/useUsuario'
-import { USUARIOS } from '../../utils/constantes'
 import { statusViagem } from '../../utils/guia'
 import { configCompleta } from '../../utils/config'
+import inicio from '../../assets/inicio.jpg'
 
 export default function Home() {
   const { saldo } = useDespesas()
@@ -22,29 +20,19 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-10">
+      <div className="anim-fade-up overflow-hidden rounded-card shadow-card">
+        <img
+          src={inicio}
+          alt="Nossa Jornada — Louise e Paulo Victor: Amor, Parceria e Aventura"
+          className="w-full"
+        />
+      </div>
+
       <div className="anim-fade-up rounded-card bg-pinheiro-700 px-4 py-2 text-center text-sm font-bold text-white">
         {status.texto}
       </div>
 
       <Hoje />
-
-      <div className="anim-fade-up">
-        <HeroFotos />
-      </div>
-
-      <section
-        className="anim-fade-up flex items-center justify-center gap-5 rounded-card bg-gradient-to-br from-pinheiro-600 to-pinheiro-800 px-5 py-7"
-        style={{ animationDelay: '40ms' }}
-      >
-        {USUARIOS.map((u) => (
-          <div key={u.id} className="flex flex-col items-center gap-2">
-            <Avatar id={u.id} tamanho="size-20" />
-            <span className="text-xs font-semibold text-white">
-              {u.primeiroNome}
-            </span>
-          </div>
-        ))}
-      </section>
 
       <div className="anim-fade-up" style={{ animationDelay: '110ms' }}>
         <Link to="/saldo" className="block">
