@@ -1,9 +1,14 @@
-import { ErroAuth, garantirToken, limparToken } from './auth'
-import { getConfig } from '../utils/config'
-import { ARQUIVO_DESPESAS, NOMES_PASTAS } from '../utils/constantes'
+import { chamar, enviarArquivo } from './api'
 
-const API = 'https://www.googleapis.com/drive/v3'
-const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
+/**
+ * Camada de Drive — agora sobre o backend em Apps Script.
+ *
+ * As assinaturas das funções são as mesmas da versão OAuth (lerDespesas,
+ * salvarDespesas, uploadComprovante, uploadFoto, listarFotos, ...), então os
+ * hooks e componentes continuam iguais. O que mudou é o transporte: em vez de
+ * falar direto com a API do Google Drive usando um token OAuth, tudo passa pelo
+ * Web App do Apps Script, que roda na conta do dono da pasta.
+ */
 
 export class ErroDrive extends Error {
   constructor(mensagem, { status } = {}) {
@@ -13,143 +18,12 @@ export class ErroDrive extends Error {
   }
 }
 
-/** Escapa aspas simples e barras para uso dentro do parâmetro `q` do Drive. */
-function esc(texto) {
-  return String(texto).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-}
-
-async function requisitar(url, opcoes = {}) {
-  const token = await garantirToken()
-
-  const resposta = await fetch(url, {
-    ...opcoes,
-    headers: { Authorization: `Bearer ${token}`, ...opcoes.headers },
-  })
-
-  if (resposta.status === 401) {
-    limparToken()
-    throw new ErroAuth(
-      'LOGIN_NECESSARIO',
-      'A sessão do Google expirou. Conecte novamente.',
-    )
-  }
-
-  if (!resposta.ok) {
-    let detalhe = ''
-    try {
-      const corpo = await resposta.json()
-      detalhe = corpo?.error?.message ?? ''
-    } catch {
-      /* resposta sem json */
-    }
-    if (resposta.status === 403) {
-      throw new ErroDrive(
-        detalhe ||
-          'O Google recusou o acesso (403). Verifique se a Google Drive API está ativada e se sua conta tem permissão na pasta.',
-        { status: 403 },
-      )
-    }
-    if (resposta.status === 404) {
-      throw new ErroDrive(detalhe || 'Item não encontrado no Drive.', {
-        status: 404,
-      })
-    }
-    throw new ErroDrive(
-      detalhe || `Erro ${resposta.status} ao falar com o Google Drive.`,
-      { status: resposta.status },
-    )
-  }
-
-  return resposta
-}
-
-async function listar(params) {
-  const query = new URLSearchParams({
-    supportsAllDrives: 'true',
-    includeItemsFromAllDrives: 'true',
-    ...params,
-  })
-  const resposta = await requisitar(`${API}/files?${query}`)
-  return resposta.json()
-}
-
-/* ------------------------------------------------------------------ pastas */
-
-const cachePastas = new Map()
-
-export function limparCachePastas() {
-  cachePastas.clear()
-}
-
-function idRaiz() {
-  const { DRIVE_FOLDER_ID } = getConfig()
-  if (!DRIVE_FOLDER_ID) {
-    throw new ErroDrive(
-      'Informe o ID da pasta CDJ na tela de Configurações.',
-    )
-  }
-  return DRIVE_FOLDER_ID
-}
-
-export async function getPastaRaiz() {
-  const id = idRaiz()
-  const resposta = await requisitar(
-    `${API}/files/${id}?fields=id,name,mimeType&supportsAllDrives=true`,
-  )
-  const pasta = await resposta.json()
-  if (pasta.mimeType !== 'application/vnd.google-apps.folder') {
-    throw new ErroDrive(
-      'O ID informado não é de uma pasta. Confira o link da pasta CDJ no Drive.',
-    )
-  }
-  return pasta
-}
-
-async function acharPasta(nome, paiId) {
-  const q = [
-    `'${esc(paiId)}' in parents`,
-    `name = '${esc(nome)}'`,
-    "mimeType = 'application/vnd.google-apps.folder'",
-    'trashed = false',
-  ].join(' and ')
-
-  const { files } = await listar({ q, fields: 'files(id,name)', pageSize: '10' })
-  return files?.[0] ?? null
-}
-
 /**
- * ID de uma subpasta (DESPESAS / FOTOS) dentro da pasta CDJ.
- * O app nunca cria a estrutura — se não existir, é erro.
+ * Compatibilidade: no modelo OAuth havia um cache de IDs de subpastas. O Apps
+ * Script resolve as pastas por conta própria, então aqui é só um no-op — mantido
+ * porque `useDrive` e `Configuracoes` ainda importam este nome.
  */
-export async function getPasta(nome) {
-  const chave = `${idRaiz()}:${nome}`
-  if (cachePastas.has(chave)) return cachePastas.get(chave)
-
-  const pasta = await acharPasta(nome, idRaiz())
-  if (!pasta) {
-    throw new ErroDrive(
-      `A subpasta "${nome}" não foi encontrada dentro da pasta CDJ no Drive.`,
-      { status: 404 },
-    )
-  }
-  cachePastas.set(chave, pasta.id)
-  return pasta.id
-}
-
-async function acharArquivo(nome, paiId) {
-  const q = [
-    `'${esc(paiId)}' in parents`,
-    `name = '${esc(nome)}'`,
-    'trashed = false',
-  ].join(' and ')
-
-  const { files } = await listar({
-    q,
-    fields: 'files(id,name,modifiedTime)',
-    pageSize: '10',
-  })
-  return files?.[0] ?? null
-}
+export function limparCachePastas() {}
 
 /* ---------------------------------------------------------------- despesas */
 
@@ -159,12 +33,8 @@ export function envelopeVazio() {
 }
 
 /**
- * Normaliza o conteúdo lido do Drive.
- *
- * O CLAUDE.md descreve `despesas.json` ora como "um array de despesas", ora
- * como um objeto com o campo `categorias_custom`. As duas formas não cabem
- * juntas, então gravamos sempre o envelope-objeto e aceitamos o array puro na
- * leitura (compatibilidade com um arquivo criado à mão).
+ * Normaliza o conteúdo lido do Drive. Aceita tanto o array puro (arquivo criado
+ * à mão) quanto o envelope-objeto, e sempre devolve o envelope.
  */
 function normalizar(bruto) {
   if (Array.isArray(bruto)) return { ...envelopeVazio(), despesas: bruto }
@@ -181,264 +51,130 @@ function normalizar(bruto) {
   return envelopeVazio()
 }
 
-/**
- * Lê `DESPESAS/despesas.json`.
- * Se o arquivo ainda não existe, devolve o envelope vazio (não é erro — o
- * arquivo é criado na primeira gravação).
- */
+/** Lê `DESPESAS/despesas.json`. Se ainda não existe, devolve o envelope vazio. */
 export async function lerDespesas() {
-  const pastaId = await getPasta(NOMES_PASTAS.DESPESAS)
-  const arquivo = await acharArquivo(ARQUIVO_DESPESAS, pastaId)
-  if (!arquivo) return envelopeVazio()
-
-  const resposta = await requisitar(
-    `${API}/files/${arquivo.id}?alt=media&supportsAllDrives=true`,
-  )
-  const texto = await resposta.text()
-  if (!texto.trim()) return envelopeVazio()
-
-  try {
-    return normalizar(JSON.parse(texto))
-  } catch {
-    throw new ErroDrive(
-      'O arquivo despesas.json no Drive está corrompido (JSON inválido). Renomeie-o e o app criará um novo.',
-    )
-  }
+  const { dados } = await chamar('ler')
+  return normalizar(dados)
 }
 
 /** Sobrescreve `DESPESAS/despesas.json`. Aceita array ou envelope. */
 export async function salvarDespesas(dados) {
-  const pastaId = await getPasta(NOMES_PASTAS.DESPESAS)
   const envelope = normalizar(dados)
-  const corpo = JSON.stringify(envelope, null, 2)
-  const arquivo = await acharArquivo(ARQUIVO_DESPESAS, pastaId)
-
-  if (arquivo) {
-    await requisitar(
-      `${UPLOAD}/${arquivo.id}?uploadType=media&supportsAllDrives=true`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: corpo,
-      },
-    )
-    return envelope
-  }
-
-  const form = new FormData()
-  form.append(
-    'metadata',
-    new Blob(
-      [JSON.stringify({ name: ARQUIVO_DESPESAS, parents: [pastaId] })],
-      { type: 'application/json' },
-    ),
-  )
-  form.append('file', new Blob([corpo], { type: 'application/json' }))
-
-  await requisitar(
-    `${UPLOAD}?uploadType=multipart&fields=id&supportsAllDrives=true`,
-    { method: 'POST', body: form },
-  )
-
+  await chamar('salvar', { dados: envelope })
   return envelope
 }
 
 /* ----------------------------------------------------------------- uploads */
 
-const CAMPOS_ARQUIVO =
-  'id,name,mimeType,thumbnailLink,createdTime,size,imageMediaMetadata(width,height)'
-
-/**
- * Upload multipart com progresso.
- * Usa XMLHttpRequest porque `fetch` não expõe progresso de envio.
- */
-export async function uploadArquivo(
-  file,
-  pastaId,
-  { nome, onProgress, signal } = {},
-) {
-  const token = await garantirToken()
-
-  const form = new FormData()
-  form.append(
-    'metadata',
-    new Blob(
-      [JSON.stringify({ name: nome || file.name, parents: [pastaId] })],
-      { type: 'application/json' },
-    ),
-  )
-  form.append('file', file)
-
+function fileParaBase64(file) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open(
-      'POST',
-      `${UPLOAD}?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(CAMPOS_ARQUIVO)}`,
-    )
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-
-    xhr.upload.onprogress = (evento) => {
-      if (onProgress && evento.lengthComputable) {
-        onProgress(Math.round((evento.loaded / evento.total) * 100))
-      }
-    }
-
-    xhr.onload = () => {
-      if (xhr.status === 401) {
-        limparToken()
-        return reject(
-          new ErroAuth(
-            'LOGIN_NECESSARIO',
-            'A sessão do Google expirou durante o envio. Conecte novamente.',
-          ),
-        )
-      }
-      if (xhr.status < 200 || xhr.status >= 300) {
-        let detalhe = ''
-        try {
-          detalhe = JSON.parse(xhr.responseText)?.error?.message ?? ''
-        } catch {
-          /* sem json */
-        }
-        return reject(
-          new ErroDrive(
-            detalhe || `Falha no envio de "${file.name}" (erro ${xhr.status}).`,
-            { status: xhr.status },
-          ),
-        )
-      }
-      onProgress?.(100)
-      try {
-        resolve(JSON.parse(xhr.responseText))
-      } catch {
-        resolve({ id: null })
-      }
-    }
-
-    xhr.onerror = () =>
-      reject(new ErroDrive(`Falha de rede ao enviar "${file.name}".`))
-    xhr.onabort = () =>
-      reject(new ErroDrive(`Envio de "${file.name}" cancelado.`))
-
-    signal?.addEventListener('abort', () => xhr.abort(), { once: true })
-
-    xhr.send(form)
+    const leitor = new FileReader()
+    leitor.onload = () =>
+      resolve({
+        mimeType: file.type || 'application/octet-stream',
+        base64: String(leitor.result).split(',')[1] ?? '',
+      })
+    leitor.onerror = () =>
+      reject(new ErroDrive(`Não consegui ler o arquivo "${file.name}".`))
+    leitor.readAsDataURL(file)
   })
+}
+
+/** Upload genérico com progresso. `alvo` = 'fotos' | 'despesas'. */
+async function upload(file, alvo, { nome, onProgress, signal } = {}) {
+  const { base64, mimeType } = await fileParaBase64(file)
+  const { arquivo } = await enviarArquivo(
+    'upload',
+    { alvo, nome: nome || file.name, mimeType, base64 },
+    { onProgress, signal },
+  )
+  onProgress?.(100)
+  return arquivo
 }
 
 /** Upload de comprovante para a pasta DESPESAS. */
 export async function uploadComprovante(file, opcoes) {
-  const pastaId = await getPasta(NOMES_PASTAS.DESPESAS)
-  return uploadArquivo(file, pastaId, opcoes)
+  return upload(file, 'despesas', opcoes)
 }
 
 /** Upload de foto para a pasta FOTOS. */
 export async function uploadFoto(file, opcoes) {
-  const pastaId = await getPasta(NOMES_PASTAS.FOTOS)
-  return uploadArquivo(file, pastaId, opcoes)
+  return upload(file, 'fotos', opcoes)
 }
 
 /* ------------------------------------------------------------------- fotos */
 
-/** Lista as imagens de CDJ/FOTOS, mais recentes primeiro. Pagina até o fim. */
+/** Lista as imagens de FOTOS, mais recentes primeiro. */
 export async function listarFotos() {
-  const pastaId = await getPasta(NOMES_PASTAS.FOTOS)
-  const q = [
-    `'${esc(pastaId)}' in parents`,
-    'trashed = false',
-    "mimeType contains 'image/'",
-  ].join(' and ')
+  const { fotos } = await chamar('listarFotos')
+  return Array.isArray(fotos) ? fotos : []
+}
 
-  const arquivos = []
-  let pageToken
-
-  do {
-    const dados = await listar({
-      q,
-      fields: `nextPageToken, files(${CAMPOS_ARQUIVO})`,
-      orderBy: 'createdTime desc',
-      pageSize: '200',
-      ...(pageToken ? { pageToken } : {}),
-    })
-    arquivos.push(...(dados.files ?? []))
-    pageToken = dados.nextPageToken
-  } while (pageToken)
-
-  return arquivos
+function base64ParaBlob(base64, mime) {
+  const binario = atob(base64)
+  const bytes = new Uint8Array(binario.length)
+  for (let i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i)
+  return new Blob([bytes], { type: mime || 'application/octet-stream' })
 }
 
 /**
- * Baixa o conteúdo de um arquivo com o token e devolve um object URL.
- * Necessário porque `thumbnailLink` aponta para googleusercontent.com e
- * depende da sessão do Google no navegador — nem sempre disponível.
+ * Baixa o conteúdo de um arquivo (via Apps Script) e devolve um object URL.
  * Quem chama é responsável por dar `URL.revokeObjectURL`.
  */
 export async function baixarComoObjectURL(fileId) {
-  const resposta = await requisitar(
-    `${API}/files/${fileId}?alt=media&supportsAllDrives=true`,
-  )
-  return URL.createObjectURL(await resposta.blob())
+  const { base64, mimeType } = await chamar('imagem', { id: fileId })
+  return URL.createObjectURL(base64ParaBlob(base64, mimeType))
 }
 
 export async function excluirArquivo(fileId) {
   if (!fileId) return
-  await requisitar(`${API}/files/${fileId}?supportsAllDrives=true`, {
-    method: 'DELETE',
-  })
+  await chamar('excluir', { id: fileId })
 }
 
 /* --------------------------------------------------------- teste de conexão */
 
 /**
- * Valida a cadeia inteira: token → pasta raiz → subpastas → despesas.json.
+ * Valida a cadeia inteira via um único `ping` no Apps Script.
  * Devolve uma lista de etapas para a tela de Configurações exibir.
- * Não lança: cada etapa reporta seu próprio erro.
+ * Não lança: em erro de conexão, reporta a etapa que falhou.
  */
 export async function testarConexao() {
   const etapas = []
-  const registrar = (rotulo, ok, detalhe) =>
-    etapas.push({ rotulo, ok, detalhe })
+  const add = (rotulo, ok, detalhe) => etapas.push({ rotulo, ok, detalhe })
 
+  let ping
   try {
-    await garantirToken()
-    registrar('Conta Google conectada', true)
+    ping = await chamar('ping')
   } catch (erro) {
-    registrar('Conta Google conectada', false, erro.message)
+    add('Conexão com o Apps Script', false, erro.message)
     return etapas
   }
 
-  let raiz
-  try {
-    raiz = await getPastaRaiz()
-    registrar('Pasta CDJ acessível', true, `"${raiz.name}"`)
-  } catch (erro) {
-    registrar('Pasta CDJ acessível', false, erro.message)
-    return etapas
-  }
+  add('Conexão com o Apps Script', true, 'Web App respondeu e token aceito.')
 
-  limparCachePastas()
+  add(
+    'Pasta DESPESAS (despesas.json)',
+    !ping.despesasErro,
+    ping.despesasErro ||
+      (ping.despesas
+        ? `${ping.despesas} despesa(s)`
+        : 'arquivo ainda não existe — será criado na primeira despesa'),
+  )
 
-  for (const nome of [NOMES_PASTAS.DESPESAS, NOMES_PASTAS.FOTOS]) {
-    try {
-      await getPasta(nome)
-      registrar(`Subpasta ${nome}`, true)
-    } catch (erro) {
-      registrar(`Subpasta ${nome}`, false, erro.message)
-    }
-  }
+  add(
+    'Pasta FOTOS',
+    !ping.fotosErro,
+    ping.fotosErro ||
+      (ping.fotos ? `${ping.fotos} foto(s)` : 'nenhuma foto ainda'),
+  )
 
-  try {
-    const dados = await lerDespesas()
-    registrar(
-      'Leitura de despesas.json',
-      true,
-      dados.despesas.length
-        ? `${dados.despesas.length} despesa(s)`
-        : 'arquivo ainda não existe — será criado na primeira despesa',
-    )
-  } catch (erro) {
-    registrar('Leitura de despesas.json', false, erro.message)
-  }
+  add(
+    'Chave do Gemini',
+    Boolean(ping.gemini),
+    ping.gemini
+      ? 'configurada no Apps Script'
+      : 'não configurada — leitura de comprovante por foto ficará indisponível',
+  )
 
   return etapas
 }

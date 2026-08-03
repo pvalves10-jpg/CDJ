@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ItemDespesa from './ItemDespesa'
 import FormularioDespesa from './FormularioDespesa'
 import BotaoAdicionar from './BotaoAdicionar'
@@ -26,7 +27,7 @@ export default function Despesas() {
     adicionarCategoria,
   } = useDespesas()
 
-  const { autenticado, conectando, conectar } = useDrive()
+  const { autenticado } = useDrive()
   const [usuario] = useUsuario()
 
   const [formAberto, setFormAberto] = useState(false)
@@ -164,16 +165,11 @@ export default function Despesas() {
       {!autenticado && (
         <div className="mx-4 mt-4 rounded-card bg-white p-5 text-center shadow-card">
           <p className="text-sm leading-relaxed text-pinheiro-600">
-            Conecte sua conta Google para carregar as despesas do Drive.
+            Configure o acesso ao Drive para carregar as despesas.
           </p>
-          <Botao
-            className="mt-3.5"
-            largura
-            carregando={conectando}
-            onClick={conectar}
-          >
-            Conectar ao Google
-          </Botao>
+          <Link to="/configuracoes" className="mt-3.5 block">
+            <Botao largura>Configurar</Botao>
+          </Link>
         </div>
       )}
 
@@ -311,7 +307,7 @@ function EstadoVazio({ autenticado }) {
       <p className="max-w-[15rem] text-sm leading-relaxed text-pinheiro-500">
         {autenticado
           ? 'Toque no + para adicionar a primeira!'
-          : 'Conecte ao Google para ver as despesas já salvas no Drive.'}
+          : 'Configure o acesso ao Drive para ver as despesas já salvas.'}
       </p>
     </div>
   )

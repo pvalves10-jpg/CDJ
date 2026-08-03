@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import ImagemDrive from './ImagemDrive'
 import VisualizadorFoto from './VisualizadorFoto'
 import Botao from '../ui/Botao'
@@ -7,7 +8,7 @@ import { useDrive } from '../../hooks/useDrive'
 
 export default function Fotos() {
   const { fotos, carregando, envios, enviar } = useFotos()
-  const { autenticado, conectando, conectar } = useDrive()
+  const { autenticado } = useDrive()
   const [aberta, setAberta] = useState(null)
   const inputRef = useRef(null)
 
@@ -37,16 +38,11 @@ export default function Fotos() {
       {!autenticado ? (
         <div className="mx-4 mt-4 rounded-card bg-white p-5 text-center shadow-card">
           <p className="text-sm leading-relaxed text-pinheiro-600">
-            Conecte sua conta Google para ver e enviar fotos.
+            Configure o acesso ao Drive para ver e enviar fotos.
           </p>
-          <Botao
-            className="mt-3.5"
-            largura
-            carregando={conectando}
-            onClick={conectar}
-          >
-            Conectar ao Google
-          </Botao>
+          <Link to="/configuracoes" className="mt-3.5 block">
+            <Botao largura>Configurar</Botao>
+          </Link>
         </div>
       ) : (
         <div className="px-4 pt-4">
@@ -140,7 +136,7 @@ function EstadoVazio({ autenticado }) {
       <p className="max-w-[16rem] text-sm leading-relaxed text-pinheiro-500">
         {autenticado
           ? 'Envie as primeiras fotos da viagem!'
-          : 'Conecte ao Google para ver as fotos já salvas no Drive.'}
+          : 'Configure o acesso ao Drive para ver as fotos já salvas.'}
       </p>
     </div>
   )

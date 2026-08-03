@@ -1,26 +1,14 @@
-import { getConfig } from '../utils/config'
+import { chamar } from './api'
 import { CATEGORIAS_PADRAO } from '../utils/constantes'
 
-const BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-
 /**
- * O CLAUDE.md especifica `gemini-1.5-flash`, mas o Google descontinuou esse
- * modelo (set/2025) e chaves novas recebem 404 nele. Tentamos do mais atual
- * para o mais antigo e memorizamos o primeiro que responder, para não pagar o
- * custo da descoberta em toda leitura.
+ * Leitura de comprovante.
+ *
+ * A imagem é reduzida NO NAVEGADOR (economiza dados no 4G) e enviada ao Apps
+ * Script, que chama o Gemini com a chave guardada do lado do servidor. Assim a
+ * GEMINI_API_KEY nunca aparece no site. A resposta (texto do modelo) é validada
+ * aqui — campo ruim vira null e o formulário fica em branco nele.
  */
-const MODELOS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
-const LS_MODELO = 'cdj:modelo-gemini'
-
-/** Prompt exato do CLAUDE.md — não alterar. */
-const PROMPT = `Analise este comprovante de pagamento brasileiro e retorne APENAS um JSON válido, sem markdown, sem texto adicional:
-{
-  "local": "nome do estabelecimento ou loja",
-  "data": "YYYY-MM-DD",
-  "valor": 0.00,
-  "categoria": "restaurante|hospedagem|transporte|mercado|passeio|outro"
-}
-Se não conseguir identificar algum campo, use null.`
 
 export class ErroGemini extends Error {
   constructor(mensagem) {
@@ -43,7 +31,7 @@ function paraBase64(blob) {
 
 /**
  * Reduz a foto antes de enviar. Uma foto de celular tem ~12MP; em base64 vira
- * um corpo de vários MB, lento no 4G e sem ganho de precisão para ler um cupom.
+ * um corpo de vários MB, lento e sem ganho de precisão para ler um cupom.
  * Se o navegador não decodificar o formato (HEIC, por exemplo), manda o original.
  */
 async function prepararImagem(file, maxLado = 1600) {
@@ -85,7 +73,6 @@ async function prepararImagem(file, maxLado = 1600) {
 const IDS_CATEGORIA = new Set(CATEGORIAS_PADRAO.map((c) => c.id))
 
 function limparJson(texto) {
-  // Mesmo pedindo "sem markdown", o modelo às vezes envolve em ```json.
   const semCerca = texto
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -117,123 +104,32 @@ function validar(bruto) {
 
 /* -------------------------------------------------------------- requisição */
 
-function mensagemDeErro(status, detalhe) {
-  if (status === 400 && /API key/i.test(detalhe)) {
-    return 'A GEMINI_API_KEY parece inválida. Confira em Configurações.'
-  }
-  if (status === 403) {
-    return 'A chave do Gemini não tem permissão. Verifique se a API está habilitada no Google AI Studio.'
-  }
-  if (status === 429) {
-    return 'Limite de uso do Gemini atingido. Tente de novo em alguns minutos ou preencha a despesa manualmente.'
-  }
-  if (status >= 500) {
-    return 'O Gemini está indisponível no momento. Tente de novo ou preencha manualmente.'
-  }
-  return detalhe || `Falha ao chamar o Gemini (erro ${status}).`
-}
-
-async function chamar(modelo, chave, imagem, signal) {
-  const resposta = await fetch(
-    `${BASE}/${modelo}:generateContent?key=${encodeURIComponent(chave)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal,
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PROMPT },
-              {
-                inline_data: {
-                  mime_type: imagem.mimeType,
-                  data: imagem.base64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-        },
-      }),
-    },
-  )
-
-  if (!resposta.ok) {
-    let detalhe = ''
-    try {
-      detalhe = (await resposta.json())?.error?.message ?? ''
-    } catch {
-      /* sem json */
-    }
-    const erro = new ErroGemini(mensagemDeErro(resposta.status, detalhe))
-    erro.status = resposta.status
-    // 404 = modelo inexistente para esta chave; vale tentar o próximo da lista.
-    erro.modeloInvalido = resposta.status === 404
-    throw erro
-  }
-
-  return resposta.json()
-}
-
 /**
  * Lê um comprovante e devolve `{ local, data, valor, categoria }`.
- * Campos não identificados vêm como `null` — o formulário fica em branco neles.
+ * Campos não identificados vêm como `null`.
  */
 export async function lerComprovante(file, { signal } = {}) {
-  const { GEMINI_API_KEY } = getConfig()
-  if (!GEMINI_API_KEY) {
-    throw new ErroGemini(
-      'Informe a GEMINI_API_KEY em Configurações para ler comprovantes por foto.',
-    )
-  }
   if (!file) throw new ErroGemini('Nenhuma imagem selecionada.')
 
   const imagem = await prepararImagem(file)
 
-  const memorizado = localStorage.getItem(LS_MODELO)
-  const candidatos = memorizado
-    ? [memorizado, ...MODELOS.filter((m) => m !== memorizado)]
-    : MODELOS
-
-  let dados = null
-  let ultimoErro = null
-
-  for (const modelo of candidatos) {
-    try {
-      dados = await chamar(modelo, GEMINI_API_KEY, imagem, signal)
-      localStorage.setItem(LS_MODELO, modelo)
-      break
-    } catch (erro) {
-      if (erro.name === 'AbortError') throw erro
-      ultimoErro = erro
-      if (!erro.modeloInvalido) throw erro
-    }
-  }
-
-  if (!dados) {
-    throw (
-      ultimoErro ??
-      new ErroGemini('Nenhum modelo do Gemini respondeu a esta chave.')
+  let texto
+  try {
+    const resposta = await chamar(
+      'gemini',
+      { mimeType: imagem.mimeType, base64: imagem.base64 },
+      { signal },
     )
-  }
-
-  const candidato = dados?.candidates?.[0]
-  if (candidato?.finishReason === 'SAFETY') {
+    texto = resposta.texto
+  } catch (erro) {
+    if (erro.name === 'AbortError') throw erro
     throw new ErroGemini(
-      'O Gemini bloqueou esta imagem. Preencha a despesa manualmente.',
+      erro.message ||
+        'Falha ao ler o comprovante. Tente outra foto ou preencha manualmente.',
     )
   }
 
-  const texto = candidato?.content?.parts
-    ?.map((p) => p.text ?? '')
-    .join('')
-    .trim()
-
-  if (!texto) {
+  if (!texto || !texto.trim()) {
     throw new ErroGemini(
       'O Gemini não conseguiu ler nada nesta imagem. Tente outra foto ou preencha manualmente.',
     )
@@ -248,40 +144,14 @@ export async function lerComprovante(file, { signal } = {}) {
   }
 }
 
-/** Ping barato usado pelo "Testar conexão" da tela de Configurações. */
+/** Ping do Gemini para o "Testar conexão" — reflete o status vindo do Apps Script. */
 export async function testarGemini() {
-  const { GEMINI_API_KEY } = getConfig()
-  if (!GEMINI_API_KEY) {
-    return { ok: false, detalhe: 'Chave não informada.' }
+  try {
+    const ping = await chamar('ping')
+    return ping.gemini
+      ? { ok: true, detalhe: 'chave configurada no Apps Script' }
+      : { ok: false, detalhe: 'GEMINI_API_KEY não configurada no Apps Script.' }
+  } catch (erro) {
+    return { ok: false, detalhe: erro.message }
   }
-
-  const memorizado = localStorage.getItem(LS_MODELO)
-  const candidatos = memorizado
-    ? [memorizado, ...MODELOS.filter((m) => m !== memorizado)]
-    : MODELOS
-
-  let ultimo = ''
-  for (const modelo of candidatos) {
-    try {
-      const resposta = await fetch(
-        `${BASE}/${modelo}?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-      )
-      if (resposta.ok) {
-        localStorage.setItem(LS_MODELO, modelo)
-        return { ok: true, detalhe: `modelo ${modelo}` }
-      }
-      let detalhe = ''
-      try {
-        detalhe = (await resposta.json())?.error?.message ?? ''
-      } catch {
-        /* sem json */
-      }
-      ultimo = mensagemDeErro(resposta.status, detalhe)
-      if (resposta.status !== 404) return { ok: false, detalhe: ultimo }
-    } catch (erro) {
-      return { ok: false, detalhe: erro.message }
-    }
-  }
-
-  return { ok: false, detalhe: ultimo || 'Nenhum modelo disponível.' }
 }

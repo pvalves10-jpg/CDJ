@@ -18,7 +18,7 @@ export function useDrive() {
     try {
       await login()
       limparCachePastas()
-      toast.ok('Conectado ao Google Drive.')
+      toast.ok('Conexão validada.')
       return true
     } catch (e) {
       setErro(e.message)
@@ -34,7 +34,7 @@ export function useDrive() {
     logout()
     limparCachePastas()
     setErro(null)
-    toast.ok('Conta Google desconectada.')
+    toast.ok('Conexão esquecida neste aparelho.')
   }, [])
 
   return { autenticado, conectando, erro, conectar, desconectar, setErro }

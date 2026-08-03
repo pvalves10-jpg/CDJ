@@ -1,17 +1,16 @@
 import { Link } from 'react-router-dom'
 import Avatar from './Avatar'
+import HeroFotos from './HeroFotos'
 import SeletorUsuario from './SeletorUsuario'
 import ResumoSaldo from '../Saldo/ResumoSaldo'
 import Botao from '../ui/Botao'
 import { useDespesas } from '../../hooks/useDespesas'
-import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
 import { USUARIOS } from '../../utils/constantes'
 import { configCompleta } from '../../utils/config'
 
 export default function Home() {
   const { saldo } = useDespesas()
-  const { autenticado, conectando, conectar } = useDrive()
   const [usuario, setUsuario] = useUsuario()
 
   const faltaConfigurar = !configCompleta()
@@ -20,6 +19,10 @@ export default function Home() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pb-10">
+      <div className="anim-fade-up">
+        <HeroFotos />
+      </div>
+
       <section
         className="anim-fade-up flex items-center justify-center gap-5 rounded-card bg-gradient-to-br from-pinheiro-600 to-pinheiro-800 px-5 py-7"
         style={{ animationDelay: '40ms' }}
@@ -40,28 +43,16 @@ export default function Home() {
         </Link>
       </div>
 
-      {faltaConfigurar ? (
+      {faltaConfigurar && (
         <Aviso
           emoji="⚙️"
-          texto="Faltam chaves para o app conversar com o Drive."
+          texto="Configure o acesso ao Drive para sincronizar."
           acao={
             <Link to="/configuracoes">
               <Botao tamanho="sm">Configurar</Botao>
             </Link>
           }
         />
-      ) : (
-        !autenticado && (
-          <Aviso
-            emoji="🔌"
-            texto="Conecte sua conta Google para sincronizar com o Drive."
-            acao={
-              <Botao tamanho="sm" carregando={conectando} onClick={conectar}>
-                Conectar
-              </Botao>
-            }
-          />
-        )
       )}
 
       <nav

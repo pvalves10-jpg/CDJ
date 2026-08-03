@@ -7,13 +7,17 @@
  * GitHub Actions. Por isso é carregado via `import.meta.glob`, que resolve para
  * um objeto vazio quando o arquivo não existe — um `import` estático quebraria
  * o build em CI.
+ *
+ * Backend em Apps Script: o app só guarda a URL do Web App e um token. As
+ * chaves sensíveis (IDs das pastas, chave do Gemini) ficam nas Propriedades do
+ * Script, do lado do Apps Script — nunca no navegador.
  */
 const modulos = import.meta.glob('../config.js', { eager: true })
 const doArquivo = Object.values(modulos)[0]?.CONFIG ?? {}
 
 const LS_KEY = 'cdj:config'
 
-export const CHAVES = ['GEMINI_API_KEY', 'GOOGLE_CLIENT_ID', 'DRIVE_FOLDER_ID']
+export const CHAVES = ['APPSCRIPT_URL', 'APP_TOKEN']
 
 function doLocalStorage() {
   try {
@@ -23,7 +27,7 @@ function doLocalStorage() {
   }
 }
 
-/** Config efetiva do app. Sempre retorna as três chaves (string, possivelmente vazia). */
+/** Config efetiva do app. Sempre retorna as chaves (string, possivelmente vazia). */
 export function getConfig() {
   const salvo = doLocalStorage()
   const resultado = {}
@@ -33,7 +37,22 @@ export function getConfig() {
   return resultado
 }
 
-/** Grava (parcialmente) a config no localStorage. */
+/* --------------------------------------------------------------- ouvintes */
+
+const ouvintes = new Set()
+
+/** Assina mudanças de configuração. `fn(estaConfigurado())` é chamado a cada save. */
+export function assinarConfig(fn) {
+  ouvintes.add(fn)
+  return () => ouvintes.delete(fn)
+}
+
+function notificar() {
+  const configurado = estaConfigurado()
+  for (const fn of ouvintes) fn(configurado)
+}
+
+/** Grava (parcialmente) a config no localStorage e avisa os ouvintes. */
 export function setConfig(parcial) {
   const atual = doLocalStorage()
   const novo = { ...atual }
@@ -41,29 +60,19 @@ export function setConfig(parcial) {
     if (chave in parcial) novo[chave] = (parcial[chave] ?? '').trim()
   }
   localStorage.setItem(LS_KEY, JSON.stringify(novo))
+  notificar()
   return getConfig()
 }
 
-/** true quando as três chaves estão preenchidas. */
-export function configCompleta(cfg = getConfig()) {
+/** true quando a URL do Apps Script e o token estão preenchidos. */
+export function estaConfigurado(cfg = getConfig()) {
   return CHAVES.every((chave) => Boolean(cfg[chave]))
 }
+
+/** Alias histórico usado por algumas telas. */
+export const configCompleta = estaConfigurado
 
 /** Quais chaves ainda faltam. */
 export function chavesFaltando(cfg = getConfig()) {
   return CHAVES.filter((chave) => !cfg[chave])
-}
-
-/**
- * Aceita tanto o ID puro quanto a URL completa da pasta do Drive
- * (https://drive.google.com/drive/folders/<ID>?usp=sharing) e devolve só o ID.
- */
-export function extrairIdDrive(entrada) {
-  const texto = (entrada ?? '').trim()
-  if (!texto) return ''
-  const porCaminho = texto.match(/\/folders\/([a-zA-Z0-9_-]+)/)
-  if (porCaminho) return porCaminho[1]
-  const porQuery = texto.match(/[?&]id=([a-zA-Z0-9_-]+)/)
-  if (porQuery) return porQuery[1]
-  return texto
 }

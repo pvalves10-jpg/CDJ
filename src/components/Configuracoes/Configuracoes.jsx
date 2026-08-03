@@ -4,24 +4,22 @@ import Cartao from '../ui/Cartao'
 import Campo from '../ui/Campo'
 import { useDrive } from '../../hooks/useDrive'
 import { useUsuario } from '../../hooks/useUsuario'
-import { extrairIdDrive, getConfig, setConfig } from '../../utils/config'
-import { limparCachePastas, testarConexao } from '../../services/drive'
-import { testarGemini } from '../../services/gemini'
+import { getConfig, setConfig } from '../../utils/config'
+import { testarConexao } from '../../services/drive'
 import { toast } from '../../services/toast'
 import { nomeUsuario, USUARIOS } from '../../utils/constantes'
 
 export default function Configuracoes() {
   const inicial = getConfig()
   const [form, setForm] = useState({
-    GEMINI_API_KEY: inicial.GEMINI_API_KEY,
-    GOOGLE_CLIENT_ID: inicial.GOOGLE_CLIENT_ID,
-    DRIVE_FOLDER_ID: inicial.DRIVE_FOLDER_ID,
+    APPSCRIPT_URL: inicial.APPSCRIPT_URL,
+    APP_TOKEN: inicial.APP_TOKEN,
   })
   const [salvo, setSalvo] = useState(false)
   const [etapas, setEtapas] = useState(null)
   const [testando, setTestando] = useState(false)
 
-  const { autenticado, conectando, erro, conectar, desconectar } = useDrive()
+  const { autenticado, desconectar } = useDrive()
   const [usuario, setUsuario] = useUsuario()
 
   const alterar = (chave) => (evento) => {
@@ -31,14 +29,8 @@ export default function Configuracoes() {
   }
 
   function salvar({ avisar = true } = {}) {
-    // O campo da pasta aceita a URL inteira do Drive; guardamos só o ID.
-    const normalizado = {
-      ...form,
-      DRIVE_FOLDER_ID: extrairIdDrive(form.DRIVE_FOLDER_ID),
-    }
-    setConfig(normalizado)
-    setForm(normalizado)
-    limparCachePastas()
+    // A URL do Web App às vezes vem com espaços ao copiar; o setConfig já faz trim.
+    setConfig(form)
     setSalvo(true)
     setEtapas(null)
     if (avisar) toast.ok('Configurações salvas neste aparelho.')
@@ -48,21 +40,8 @@ export default function Configuracoes() {
     salvar({ avisar: false })
     setTestando(true)
     try {
-      // Drive e Gemini são independentes — rodam em paralelo.
-      const [doDrive, doGemini] = await Promise.all([
-        testarConexao(),
-        testarGemini(),
-      ])
-      const resultado = [
-        ...doDrive,
-        {
-          rotulo: 'Chave do Gemini',
-          ok: doGemini.ok,
-          detalhe: doGemini.detalhe,
-        },
-      ]
+      const resultado = await testarConexao()
       setEtapas(resultado)
-
       const falhas = resultado.filter((e) => !e.ok).length
       if (falhas === 0) toast.ok('Tudo certo — conexão validada.')
       else toast.erro(`${falhas} verificação(ões) falhou/falharam.`)
@@ -104,10 +83,10 @@ export default function Configuracoes() {
       </Cartao>
 
       <Cartao
-        titulo="Conta Google"
-        descricao="Autoriza o app a ler e gravar dentro da pasta CDJ no seu Drive."
+        titulo="Conexão com o Drive"
+        descricao="O app conversa com o seu Google Drive através de um Web App do Google Apps Script, que roda na sua conta. Nada sensível fica no site — só a URL e um token."
       >
-        <div className="flex items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
           <span
             className={[
               'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold',
@@ -119,63 +98,36 @@ export default function Configuracoes() {
             <span
               className={`size-2 rounded-full ${autenticado ? 'bg-pinheiro-600' : 'bg-pinheiro-300'}`}
             />
-            {autenticado ? 'Conectado' : 'Desconectado'}
+            {autenticado ? 'Configurado' : 'Não configurado'}
           </span>
 
-          {autenticado ? (
+          {autenticado && (
             <Botao variante="secundario" tamanho="sm" onClick={desconectar}>
-              Desconectar
-            </Botao>
-          ) : (
-            <Botao tamanho="sm" carregando={conectando} onClick={conectar}>
-              Conectar ao Google
+              Esquecer neste aparelho
             </Botao>
           )}
         </div>
 
-        {erro && (
-          <p className="mt-3 rounded-card bg-red-50 px-3 py-2.5 text-sm text-red-700">
-            {erro}
-          </p>
-        )}
-      </Cartao>
-
-      <Cartao
-        titulo="Chaves"
-        descricao="Ficam salvas só neste aparelho (localStorage). Nada é enviado para servidor nosso."
-      >
         <div className="space-y-4">
           <Campo
-            rotulo="GOOGLE_CLIENT_ID"
-            secreto={false}
-            placeholder="000000-xxxx.apps.googleusercontent.com"
-            value={form.GOOGLE_CLIENT_ID}
-            onChange={alterar('GOOGLE_CLIENT_ID')}
-            ajuda="Google Cloud Console → Credenciais → ID do cliente OAuth (Aplicativo da Web)."
+            rotulo="URL do Apps Script"
+            placeholder="https://script.google.com/macros/s/.../exec"
+            value={form.APPSCRIPT_URL}
+            onChange={alterar('APPSCRIPT_URL')}
+            ajuda="A URL do Web App implantado. Deve terminar em /exec. Veja o passo a passo em appscript/Codigo.gs."
           />
           <Campo
-            rotulo="Pasta CDJ no Drive"
-            placeholder="Cole o link da pasta ou só o ID"
-            value={form.DRIVE_FOLDER_ID}
-            onChange={alterar('DRIVE_FOLDER_ID')}
-            ajuda="Pode colar a URL inteira — o ID é extraído automaticamente ao salvar."
-          />
-          <Campo
-            rotulo="GEMINI_API_KEY"
+            rotulo="Token"
             secreto
-            placeholder="AIza..."
-            value={form.GEMINI_API_KEY}
-            onChange={alterar('GEMINI_API_KEY')}
-            ajuda="aistudio.google.com/apikey — usada só para ler comprovantes por foto."
+            placeholder="a mesma senha do TOKEN nas Propriedades do Script"
+            value={form.APP_TOKEN}
+            onChange={alterar('APP_TOKEN')}
+            ajuda="Um segredo que você inventa e coloca igual nos dois lados (aqui e no Apps Script)."
           />
         </div>
 
         <div className="mt-5 flex gap-2.5">
-          <Botao
-            variante="secundario"
-            onClick={() => salvar()}
-            className="flex-1"
-          >
+          <Botao variante="secundario" onClick={() => salvar()} className="flex-1">
             {salvo ? 'Salvo ✓' : 'Salvar'}
           </Botao>
           <Botao onClick={testar} carregando={testando} className="flex-1">
@@ -193,9 +145,7 @@ export default function Configuracoes() {
                   {etapa.ok ? '✅' : '❌'}
                 </span>
                 <div className="min-w-0">
-                  <p className="font-semibold text-pinheiro-800">
-                    {etapa.rotulo}
-                  </p>
+                  <p className="font-semibold text-pinheiro-800">{etapa.rotulo}</p>
                   {etapa.detalhe && (
                     <p
                       className={`mt-0.5 leading-relaxed break-words ${etapa.ok ? 'text-pinheiro-500' : 'text-red-600'}`}
